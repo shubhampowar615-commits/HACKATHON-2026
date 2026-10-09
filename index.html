@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mumbai Multimodal Commute Optimizer</title>
+    <!-- Tailwind CSS via Play CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .mode-block { transition: transform 0.2s ease-in-out; }
+        .mode-block:hover { transform: translateY(-2px); }
+        /* Dynamic color coding for transit modes */
+        .color-Train { background-color: #22c55e; } /* Green */
+        .color-Local { background-color: #22c55e; } /* Green */
+        .color-Metro { background-color: #3b82f6; } /* Blue */
+        .color-Auto { background-color: #eab308; } /* Yellow */
+        .color-Taxi { background-color: #eab308; } /* Yellow */
+        .color-Bus { background-color: #ef4444; } /* Red */
+        .color-Walking { background-color: #94a3b8; } /* Slate */
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 min-h-screen flex items-center justify-center p-4 md:p-8 font-sans">
+    
+    <div class="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Left Rail: Inputs & Preferences -->
+        <div class="bg-slate-900 border border-cyan-500/40 rounded-xl p-6 lg:p-8 shadow-[0_0_20px_rgba(6,182,212,0.15)] flex flex-col gap-8 h-full">
+            <div>
+                <h1 class="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent mb-2">Smart Mobility</h1>
+                <p class="text-slate-400 text-sm">Mumbai Multimodal Commute Optimizer</p>
+            </div>
+            
+            <div class="space-y-5">
+                <div>
+                    <label class="block text-sm font-medium text-cyan-400 mb-2">Source</label>
+                    <select id="origin" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all appearance-none cursor-pointer">
+                        <option value="Kalyan">Kalyan</option>
+                        <option value="Thane">Thane</option>
+                        <option value="Dadar">Dadar</option>
+                        <option value="Borivali">Borivali</option>
+                        <option value="BKC">BKC</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-cyan-400 mb-2">Destination</label>
+                    <select id="destination" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all appearance-none cursor-pointer">
+                        <option value="BKC">BKC</option>
+                        <option value="CSMT">CSMT</option>
+                        <option value="Dadar">Dadar</option>
+                        <option value="Thane">Thane</option>
+                        <option value="Kalyan">Kalyan</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <p class="text-sm font-medium text-cyan-400">Optimization Weights</p>
+                <div class="space-y-3 bg-slate-800/50 p-4 rounded-lg border border-slate-700/50">
+                    <label class="flex items-center gap-3 cursor-pointer group">
+                        <input type="checkbox" id="fastest" checked class="w-5 h-5 accent-cyan-500 cursor-pointer">
+                        <span class="text-slate-300 group-hover:text-white transition-colors">Fastest</span>
+                    </label>
+                    <label class="flex items-center gap-3 cursor-pointer group">
+                        <input type="checkbox" id="cheapest" class="w-5 h-5 accent-cyan-500 cursor-pointer">
+                        <span class="text-slate-300 group-hover:text-white transition-colors">Cheapest</span>
+                    </label>
+                    <label class="flex items-center gap-3 cursor-pointer group">
+                        <input type="checkbox" id="reliable" class="w-5 h-5 accent-cyan-500 cursor-pointer">
+                        <span class="text-slate-300 group-hover:text-white transition-colors">Reliable</span>
+                    </label>
+                </div>
+            </div>
+
+            <button id="calculateBtn" class="mt-auto w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-4 rounded-lg transition-all shadow-[0_0_15px_rgba(6,182,212,0.4)] transform hover:-translate-y-0.5">
+                Calculate Optimal Itinerary
+            </button>
+        </div>
+
+        <!-- Center Pane: Interactive Visual Timeline -->
+        <div class="lg:col-span-2 bg-slate-900 border border-cyan-500/40 rounded-xl p-6 lg:p-8 shadow-[0_0_20px_rgba(6,182,212,0.15)] flex flex-col min-h-[600px]">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-semibold flex items-center gap-3">
+                    <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] animate-pulse"></span>
+                    Live Routing Analytics
+                </h2>
+                <span class="px-3 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full text-xs font-bold tracking-wide">SYSTEM ACTIVE</span>
+            </div>
+            
+            <div id="resultsContainer" class="flex-1 overflow-y-auto space-y-5 pr-2 custom-scrollbar">
+                <div class="h-full min-h-[400px] flex flex-col items-center justify-center text-slate-500 border-2 border-dashed border-slate-700/70 rounded-xl bg-slate-800/20">
+                    <svg class="w-12 h-12 mb-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                    <p class="text-center px-4">Select Source, Destination and Preferences<br>to generate smart itineraries.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Helper to map transportation mode to css color class
+        function getColorMapping(mode) {
+            if (mode.includes('Local') || mode.includes('Train')) return 'color-Local';
+            if (mode.includes('Metro')) return 'color-Metro';
+            if (mode.includes('Auto') || mode.includes('Taxi')) return 'color-Auto';
+            if (mode.includes('Bus')) return 'color-Bus';
+            return 'color-Walking'; 
+        }
+
+        document.getElementById('calculateBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('calculateBtn');
+            const originalText = btn.innerText;
+            btn.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processing...`;
+            btn.disabled = true;
+
+            const origin = document.getElementById('origin').value;
+            const destination = document.getElementById('destination').value;
+            const preferences = {
+                fastest: document.getElementById('fastest').checked,
+                cheapest: document.getElementById('cheapest').checked,
+                reliable: document.getElementById('reliable').checked
+            };
+
+            const container = document.getElementById('resultsContainer');
+            
+            try {
+                // Fetch data from local Flask API
+                const response = await fetch('http://127.0.0.1:5000/api/route-optimize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ origin, destination, preferences })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Optimization failed');
+                }
+
+                const routes = await response.json();
+                
+                container.innerHTML = ''; // Clear previous
+                
+                if (routes.length === 0) {
+                    container.innerHTML = `
+                        <div class="p-6 bg-red-900/20 border border-red-500/40 text-red-400 rounded-xl flex items-center gap-3">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                            <div>
+                                <p class="font-bold">No Routes Available</p>
+                                <p class="text-sm opacity-80">Currently no direct corridors exist between ${origin} and ${destination} in the database.</p>
+                            </div>
+                        </div>`;
+                    return;
+                }
+
+                // Render dynamic timeline cards
+                routes.forEach((route, index) => {
+                    const isTop = index === 0;
+                    
+                    let timelineBlocks = route.mode_sequence.map(mode => {
+                        const colorClass = getColorMapping(mode);
+                        return `<div class="mode-block ${colorClass} px-3 py-2 rounded-md text-xs font-bold text-white shadow-md flex-1 text-center whitespace-nowrap overflow-hidden text-ellipsis border border-white/10 tracking-wide">${mode}</div>`;
+                    }).join('<div class="text-slate-500 flex items-center px-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg></div>');
+
+                    const badgeHtml = isTop ? `<span class="bg-cyan-500 text-slate-900 text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider shadow-[0_0_10px_rgba(6,182,212,0.5)]">Recommended Match</span>` : '';
+                    
+                    const cardHTML = `
+                        <div class="bg-slate-800/60 border ${isTop ? 'border-cyan-500' : 'border-slate-700 hover:border-slate-500'} rounded-xl p-5 transition-colors relative shadow-lg">
+                            <div class="flex justify-between items-start mb-5">
+                                <div>
+                                    <h3 class="text-xl font-bold text-slate-100 flex items-center gap-3">
+                                        ${route.strategy} Route
+                                        ${badgeHtml}
+                                    </h3>
+                                    
+                                    <div class="flex flex-wrap gap-5 text-sm font-medium text-slate-300 mt-3">
+                                        <div class="flex items-center gap-1.5 bg-slate-900/50 px-3 py-1.5 rounded-lg border border-slate-700/50">
+                                            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                            ${route.time} mins
+                                        </div>
+                                        <div class="flex items-center gap-1.5 bg-slate-900/50 px-3 py-1.5 rounded-lg border border-slate-700/50">
+                                            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                                            ₹${route.cost}
+                                        </div>
+                                        <div class="flex items-center gap-1.5 bg-slate-900/50 px-3 py-1.5 rounded-lg border border-slate-700/50">
+                                            <svg class="w-4 h-4 text-${route.crowd === 'High' ? 'red' : route.crowd === 'Medium' ? 'yellow' : 'green'}-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                                            ${route.crowd} Crowd
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-right hidden sm:block">
+                                    <div class="text-3xl font-black text-white/10">0${index + 1}</div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-slate-950 p-4 rounded-lg border border-slate-800 shadow-inner">
+                                <div class="flex items-stretch gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                                    ${timelineBlocks}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.insertAdjacentHTML('beforeend', cardHTML);
+                });
+
+            } catch (error) {
+                container.innerHTML = `
+                    <div class="p-5 bg-red-900/20 border border-red-500/40 text-red-400 rounded-xl">
+                        <p class="font-bold mb-1">Connection Error</p>
+                        <p class="text-sm">${error.message}</p>
+                        <p class="text-xs mt-3 opacity-70">Make sure the Flask server is running locally on 127.0.0.1:5000</p>
+                    </div>`;
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        });
+    </script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.5); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.3); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.5); }
+    </style>
+</body>
+</html>
