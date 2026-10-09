@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mumbai Multimodal Commute Optimizer</title>
+    <!-- Tailwind CSS via Play CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet Maps CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet Maps JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        .mode-block { transition: transform 0.2s ease-in-out; }
+        .mode-block:hover { transform: translateY(-2px); }
+        .color-Train { background-color: #22c55e; } /* Green */
+        .color-Local { background-color: #22c55e; } /* Green */
+        .color-Metro { background-color: #3b82f6; } /* Blue */
+        .color-Auto { background-color: #eab308; } /* Yellow */
+        .color-Taxi { background-color: #eab308; } /* Yellow */
+        .color-Bus { background-color: #ef4444; } /* Red */
+        .color-Walking { background-color: #94a3b8; } /* Slate */
+        
+        /* Dark mode hack for standard OSM tiles */
+        .leaflet-layer,
+        .leaflet-control-zoom-in,
+        .leaflet-control-zoom-out,
+        .leaflet-control-attribution {
+            filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.5); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.3); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.5); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 min-h-screen flex items-center justify-center p-4 md:p-8 font-sans">
+    
+    <div class="max-w-7xl w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Left Rail: Inputs & Preferences -->
+        <div class="bg-slate-900 border border-cyan-500/30 rounded-2xl p-6 lg:p-8 shadow-[0_0_30px_rgba(6,182,212,0.15)] flex flex-col gap-8 h-full relative overflow-hidden">
+            <!-- Subtle background glow -->
+            <div class="absolute -top-24 -left-24 w-48 h-48 bg-cyan-500/20 rounded-full blur-[60px] pointer-events-none"></div>
+
+            <div class="relative z-10">
+                <h1 class="text-3xl font-extrabold bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent mb-2 tracking-tight">Smart Mobility</h1>
+                <p class="text-slate-400 text-sm font-medium flex items-center gap-2">
+                    <span class="relative flex h-2.5 w-2.5">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.8)]"></span>
+                    </span>
+                    Mumbai Multimodal Optimizer
+                </p>
+            </div>
+            
+            <div class="space-y-5 relative z-10">
+                <div class="relative group">
+                    <label class="block text-xs font-bold text-cyan-400 uppercase tracking-wider mb-2">Source Location</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                            <svg class="w-5 h-5 text-slate-500 group-focus-within:text-cyan-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        </div>
+                        <input type="text" id="origin" placeholder="e.g. Bandra, Andheri" class="w-full bg-slate-950/60 border border-slate-700/80 rounded-xl pl-11 pr-4 py-3.5 text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all shadow-inner text-sm font-medium">
+                    </div>
+                </div>
+                
+                <div class="relative group">
+                    <label class="block text-xs font-bold text-cyan-400 uppercase tracking-wider mb-2">Destination Location</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                            <svg class="w-5 h-5 text-slate-500 group-focus-within:text-cyan-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                        </div>
+                        <input type="text" id="destination" placeholder="e.g. Powai, Colaba" class="w-full bg-slate-950/60 border border-slate-700/80 rounded-xl pl-11 pr-4 py-3.5 text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all shadow-inner text-sm font-medium">
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-4 relative z-10">
+                <p class="text-xs font-bold text-cyan-400 uppercase tracking-wider">Optimization Weights</p>
+                <div class="grid grid-cols-1 gap-3">
+                    <label class="flex items-center justify-between p-3.5 rounded-xl bg-slate-950/50 border border-slate-700/50 cursor-pointer hover:border-cyan-500/50 hover:bg-slate-800/50 transition-all group shadow-sm">
+                        <span class="flex items-center gap-3">
+                            <span class="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400 group-hover:bg-cyan-500/20 transition-colors shadow-inner">⚡</span>
+                            <span class="text-sm font-bold text-slate-300 group-hover:text-white transition-colors">Fastest Route</span>
+                        </span>
+                        <input type="checkbox" id="fastest" checked class="w-5 h-5 accent-cyan-500 rounded cursor-pointer border-slate-600">
+                    </label>
+                    <label class="flex items-center justify-between p-3.5 rounded-xl bg-slate-950/50 border border-slate-700/50 cursor-pointer hover:border-emerald-500/50 hover:bg-slate-800/50 transition-all group shadow-sm">
+                        <span class="flex items-center gap-3">
+                            <span class="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-colors shadow-inner">💰</span>
+                            <span class="text-sm font-bold text-slate-300 group-hover:text-white transition-colors">Cheapest Route</span>
+                        </span>
+                        <input type="checkbox" id="cheapest" class="w-5 h-5 accent-emerald-500 rounded cursor-pointer border-slate-600">
+                    </label>
+                    <label class="flex items-center justify-between p-3.5 rounded-xl bg-slate-950/50 border border-slate-700/50 cursor-pointer hover:border-purple-500/50 hover:bg-slate-800/50 transition-all group shadow-sm">
+                        <span class="flex items-center gap-3">
+                            <span class="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400 group-hover:bg-purple-500/20 transition-colors shadow-inner">🛡️</span>
+                            <span class="text-sm font-bold text-slate-300 group-hover:text-white transition-colors">Reliable Route</span>
+                        </span>
+                        <input type="checkbox" id="reliable" class="w-5 h-5 accent-purple-500 rounded cursor-pointer border-slate-600">
+                    </label>
+                </div>
+            </div>
+
+            <button id="calculateBtn" class="group relative w-full flex justify-center py-4 px-4 border border-transparent text-sm font-black rounded-xl text-slate-900 bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 focus:ring-offset-slate-900 transition-all shadow-[0_0_20px_rgba(34,211,238,0.4)] transform hover:-translate-y-1 uppercase tracking-widest overflow-hidden z-10 mt-2">
+                <span class="absolute inset-0 w-full h-full -mt-1 rounded-lg opacity-30 bg-gradient-to-b from-transparent via-transparent to-black"></span>
+                <span class="relative flex items-center gap-2">
+                    <svg class="w-5 h-5 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                    Calculate Optimal Itinerary
+                </span>
+            </button>
+        </div>
+
+        <!-- Center Pane: Map & Interactive Visual Timeline -->
+        <div class="lg:col-span-2 flex flex-col gap-6 h-full">
+            
+            <!-- Map Visualization Card -->
+            <div class="bg-slate-900 border border-cyan-500/40 rounded-xl overflow-hidden shadow-[0_0_20px_rgba(6,182,212,0.15)] h-[280px] relative shrink-0">
+                <div id="map" class="w-full h-full z-0"></div>
+                <div class="absolute top-4 right-4 z-[400]">
+                    <span class="px-3 py-1 bg-slate-900/80 backdrop-blur-sm text-cyan-400 border border-cyan-500/30 rounded-full text-xs font-bold tracking-wide shadow-lg">LIVE GIS MAPPING</span>
+                </div>
+            </div>
+
+            <!-- Results Card -->
+            <div class="bg-slate-900 border border-cyan-500/40 rounded-xl p-6 shadow-[0_0_20px_rgba(6,182,212,0.15)] flex flex-col flex-1 min-h-[400px]">
+                <h2 class="text-xl font-semibold flex items-center gap-3 mb-6">
+                    <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] animate-pulse"></span>
+                    Routing Analytics
+                </h2>
+                
+                <div id="resultsContainer" class="flex-1 overflow-y-auto space-y-5 pr-2 custom-scrollbar">
+                    <div class="h-full min-h-[300px] flex flex-col items-center justify-center text-slate-500 border-2 border-dashed border-slate-700/70 rounded-xl bg-slate-800/20">
+                        <svg class="w-12 h-12 mb-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                        <p class="text-center px-4">Enter any origin and destination<br>to generate smart itineraries.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Map restricted to India's borders
+        const indiaBounds = [
+            [6.75, 68.16], // Southwest coordinates
+            [35.50, 97.40] // Northeast coordinates
+        ];
+        
+        const map = L.map('map', {
+            maxBounds: indiaBounds,
+            maxBoundsViscosity: 1.0, 
+            minZoom: 5 
+        }).setView([19.0760, 72.8777], 11);
+
+        // Using Google Maps tiles (works without API key) for authentic look
+        L.tileLayer('http://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}', {
+            attribution: 'Map data &copy; Google',
+            maxZoom: 20
+        }).addTo(map);
+        let currentRouteLayer = null;
+
+        // Async function to geocode location using free Nominatim API
+        async function getCoordinates(locationStr) {
+            try {
+                const query = encodeURIComponent(locationStr + ", Mumbai, Maharashtra, India");
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`);
+                const data = await res.json();
+                if (data && data.length > 0) return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+            } catch (e) { console.error("Geocoding failed", e); }
+            return null;
+        }
+        
+        function getColorHex(mode) {
+            if (mode.includes('Local') || mode.includes('Train')) return '#22c55e'; // Green
+            if (mode.includes('Metro')) return '#3b82f6'; // Blue
+            if (mode.includes('Auto') || mode.includes('Taxi') || mode.includes('Uber')) return '#eab308'; // Yellow
+            if (mode.includes('Bus')) return '#ef4444'; // Red
+            return '#94a3b8'; // Slate
+        }
+
+        // Generate map data without drawing yet
+        async function fetchMapData(origin, destination, distanceRef) {
+            const originCoords = await getCoordinates(origin);
+            const destCoords = await getCoordinates(destination);
+            
+            if (!originCoords || !destCoords) return null;
+            
+            let latlngsArray = [[originCoords, destCoords]];
+            try {
+                const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${originCoords[1]},${originCoords[0]};${destCoords[1]},${destCoords[0]}?overview=full&geometries=geojson&alternatives=3`;
+                const osrmRes = await fetch(osrmUrl);
+                const osrmData = await osrmRes.json();
+                
+                if (osrmData.routes && osrmData.routes.length > 0) {
+                    const route = osrmData.routes[0];
+                    distanceRef.val = (route.distance / 1000).toFixed(1);
+                    latlngsArray = osrmData.routes.map(r => r.geometry.coordinates.map(coord => [coord[1], coord[0]]));
+                }
+            } catch(e) {}
+            
+            return { originCoords, destCoords, latlngsArray };
+        }
+
+        // Draw segmented dynamic route on map
+        function drawSegmentedMap(mapData, origin, destination, topRouteModes, routeIndex = 0, highlightedSegmentIndex = null) {
+            if (currentRouteLayer) map.removeLayer(currentRouteLayer);
+            if (!mapData) return;
+            
+            const originIcon = L.divIcon({className: 'bg-green-500 w-4 h-4 rounded-full border-2 border-white shadow-[0_0_10px_rgba(34,197,94,0.8)]'});
+            const destIcon = L.divIcon({className: 'bg-red-500 w-4 h-4 rounded-full border-2 border-white shadow-[0_0_10px_rgba(239,68,68,0.8)]'});
+
+            const marker1 = L.marker(mapData.originCoords, {icon: originIcon}).bindPopup(`<b>Start:</b> ${origin}${mapData.originInsight ? `<br><span style="font-size: 11px; display: block; margin-top: 4px; color: #ef4444;">Live: ${mapData.originInsight}</span>` : ''}`);
+            const marker2 = L.marker(mapData.destCoords, {icon: destIcon}).bindPopup(`<b>End:</b> ${destination}${mapData.destInsight ? `<br><span style="font-size: 11px; display: block; margin-top: 4px; color: #ef4444;">Live: ${mapData.destInsight}</span>` : ''}`);
+            
+            let layers = [marker1, marker2];
+            // Select the alternative route based on the route card index, wrapping around if not enough alternatives
+            let latlngs = mapData.latlngsArray[routeIndex % mapData.latlngsArray.length];
+            
+            // Split polyline into colored segments
+            const chunks = topRouteModes.length;
+            const chunkSize = Math.ceil(latlngs.length / chunks);
+            let boundsToFit = latlngs;
+            
+            for(let i = 0; i < chunks; i++) {
+               const segment = latlngs.slice(i * chunkSize, (i+1) * chunkSize + 1); // overlap by 1 to connect
+               const color = getColorHex(topRouteModes[i]);
+               const isHighlighted = highlightedSegmentIndex === null || highlightedSegmentIndex === i;
+               
+               const routeLine = L.polyline(segment, {
+                   color: color, 
+                   weight: isHighlighted ? 7 : 4,
+                   opacity: isHighlighted ? 1.0 : 0.3,
+                   lineCap: 'round',
+                   lineJoin: 'round',
+                   dashArray: topRouteModes[i].includes('Train') || topRouteModes[i].includes('Local') ? '10, 10' : null
+               });
+               layers.push(routeLine);
+               
+               if (highlightedSegmentIndex === i) {
+                   boundsToFit = segment;
+               }
+               
+               // Add transfer point markers where modes change
+               if(i < chunks - 1 && segment.length > 0) {
+                   const transferPoint = latlngs[Math.min((i+1) * chunkSize, latlngs.length - 1)];
+                   if(transferPoint) {
+                       const tMarker = L.circleMarker(transferPoint, {
+                           radius: 6, fillColor: '#fff', color: '#1e293b', weight: 3, fillOpacity: isHighlighted ? 1 : 0.4
+                       }).bindPopup(`<b>Transfer Node</b><br>Change to ${topRouteModes[i+1]}`);
+                       layers.push(tMarker);
+                   }
+               }
+            }
+
+            currentRouteLayer = L.layerGroup(layers).addTo(map);
+            if(boundsToFit.length > 2) map.fitBounds(L.polyline(boundsToFit).getBounds(), {padding: [50, 50]});
+        }
+
+        function getColorMapping(mode) {
+            if (mode.includes('Local') || mode.includes('Train')) return 'color-Local';
+            if (mode.includes('Metro')) return 'color-Metro';
+            if (mode.includes('Auto') || mode.includes('Taxi') || mode.includes('Uber')) return 'color-Auto';
+            if (mode.includes('Bus')) return 'color-Bus';
+            return 'color-Walking'; 
+        }
+
+        document.getElementById('calculateBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('calculateBtn');
+            const originalText = btn.innerText;
+            btn.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processing...`;
+            btn.disabled = true;
+
+            const origin = document.getElementById('origin').value;
+            const destination = document.getElementById('destination').value;
+            const preferences = {
+                fastest: document.getElementById('fastest').checked,
+                cheapest: document.getElementById('cheapest').checked,
+                reliable: document.getElementById('reliable').checked
+            };
+
+            const container = document.getElementById('resultsContainer');
+            
+            try {
+                // Initialize a reference object to capture the real distance from the map function
+                let distanceRef = { val: null };
+                
+                // 1. Fetch map data and calculate true distance
+                const mapData = await fetchMapData(origin, destination, distanceRef);
+
+                // 2. Fetch data from local Flask API with real world distance
+                const response = await fetch('http://127.0.0.1:5000/api/route-optimize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ origin, destination, preferences, distance_km: distanceRef.val })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Optimization failed');
+                }
+
+                let rawData = await response.json();
+                let routes = Array.isArray(rawData) ? rawData : (rawData.routes || []);
+                let insights = !Array.isArray(rawData) ? rawData.insights : null;
+                
+                container.innerHTML = ''; // Clear previous
+                
+                if (routes.length === 0) {
+                    container.innerHTML = `
+                        <div class="p-6 bg-red-900/20 border border-red-500/40 text-red-400 rounded-xl flex items-center gap-3">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                            <div>
+                                <p class="font-bold">No Routes Available</p>
+                                <p class="text-sm opacity-80">Currently no direct corridors exist between ${origin} and ${destination} in the database.</p>
+                            </div>
+                        </div>`;
+                    return;
+                }
+
+                // Render Live Insights (Google Maps style traffic/crowd reporting)
+                if (insights) {
+                    const insightHtml = `
+                        <div class="bg-slate-800/80 border border-slate-600 rounded-xl p-4 mb-5 shadow-lg flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center shadow-inner">
+                                    <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Live Insights</p>
+                                    <p class="text-sm font-medium text-slate-200 mt-0.5">Origin Station: <span class="text-white">${insights.origin_station}</span></p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 border-t sm:border-t-0 sm:border-l border-slate-700 pt-3 sm:pt-0 sm:pl-4 w-full sm:w-auto">
+                                <div>
+                                    <p class="text-sm font-medium text-slate-200 mt-0.5">Dest Traffic: <span class="text-white">${insights.dest_area}</span></p>
+                                    <p class="text-xs text-slate-400 mt-0.5">${insights.weather}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.insertAdjacentHTML('beforeend', insightHtml);
+                    
+                    // Inject insights into map popups by augmenting the mapData object (hacky but works without changing drawSegmentedMap)
+                    mapData.originInsight = insights.origin_station;
+                    mapData.destInsight = insights.dest_area;
+                }
+
+                // Draw map with colored segments based on top recommended route
+                drawSegmentedMap(mapData, origin, destination, routes[0].mode_sequence, 0);
+
+                // Render dynamic timeline cards
+                routes.forEach((route, index) => {
+                    const isTop = index === 0;
+                    
+                    let timelineBlocks = route.mode_sequence.map((mode, blockIndex) => {
+                        const colorClass = getColorMapping(mode);
+                        return `<div class="mode-block mode-block-click ${colorClass} px-3 py-2 rounded-md text-xs font-bold text-white shadow-md flex-1 text-center whitespace-nowrap overflow-hidden text-ellipsis border border-white/10 tracking-wide cursor-pointer" data-block-index="${blockIndex}">${mode}</div>`;
+                    }).join('<div class="text-slate-500 flex items-center px-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg></div>');
+
+                    const badgeHtml = isTop ? `<span class="bg-cyan-500 text-slate-900 text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider shadow-[0_0_10px_rgba(6,182,212,0.5)]">Recommended Match</span>` : '';
+                    
+                    const walkLabel = route.walking_distance.endsWith('km') ? route.walking_distance.replace('km', ' km') : route.walking_distance.replace('m', ' meters');
+                    const waitMins = Math.min(route.waiting_time, Math.floor(route.time * 0.35));
+                    
+                    let pathTimeline = route.mode_sequence.map((mode) => {
+                        let badgeColor = 'bg-slate-700 text-slate-300 shadow-[0_0_10px_rgba(148,163,184,0.3)]';
+                        if (mode.includes('Local') || mode.includes('Train')) badgeColor = 'bg-green-500/20 text-green-400 border border-green-500/50 shadow-[0_0_12px_rgba(34,197,94,0.4)]';
+                        else if (mode.includes('Metro')) badgeColor = 'bg-blue-500/20 text-blue-400 border border-blue-500/50 shadow-[0_0_12px_rgba(59,130,246,0.4)]';
+                        else if (mode.includes('Bus')) badgeColor = 'bg-purple-500/20 text-purple-400 border border-purple-500/50 shadow-[0_0_12px_rgba(168,85,247,0.4)]';
+                        else if (mode.includes('Uber') || mode.includes('Auto') || mode.includes('Taxi')) badgeColor = 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 shadow-[0_0_12px_rgba(234,179,8,0.4)]';
+                        
+                        return `<div class="px-4 py-1.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest ${badgeColor} flex items-center justify-center text-center whitespace-nowrap">${mode}</div>`;
+                    }).join('<div class="text-slate-500 font-bold px-2 text-sm flex items-center">➔</div>');
+
+                    const card = document.createElement('div');
+                    card.className = "route-card transform transition-transform duration-200";
+                    card.innerHTML = `
+                        <div class="bg-slate-800/60 border ${isTop ? 'border-cyan-500' : 'border-slate-700 hover:border-slate-500'} rounded-xl p-5 transition-colors relative shadow-lg h-full cursor-pointer">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 class="text-xl font-bold text-slate-100 flex items-center gap-3">
+                                        ${route.strategy} Route
+                                        ${badgeHtml}
+                                    </h3>
+                                    
+                                    <div class="flex flex-wrap gap-4 text-sm font-medium text-slate-300 mt-3">
+                                        <!-- Primary Metrics -->
+                                        <div class="flex items-center gap-1.5 bg-slate-900/50 px-3 py-1.5 rounded-lg border border-slate-700/50">
+                                            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                            ${route.time} mins
+                                        </div>
+                                        <div class="flex items-center gap-1.5 bg-slate-900/50 px-3 py-1.5 rounded-lg border border-slate-700/50">
+                                            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                                            ₹${route.cost}
+                                        </div>
+                                        <div class="flex items-center gap-1.5 bg-slate-900/50 px-3 py-1.5 rounded-lg border border-slate-700/50">
+                                            <svg class="w-4 h-4 text-${route.crowd === 'High' ? 'red' : route.crowd === 'Medium' ? 'yellow' : 'green'}-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                                            ${route.crowd} Crowd
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-wrap gap-4 text-xs font-medium text-slate-400 mt-2 mb-1">
+                                        <!-- Secondary Problem Statement Metrics -->
+                                        <div class="flex items-center gap-1.5">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
+                                            ${route.transfers} Transfers
+                                        </div>
+                                        <div class="flex items-center gap-1.5">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                                            Walk: ${walkLabel}
+                                        </div>
+                                        <div class="flex items-center gap-1.5">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                            Wait: ${waitMins} mins
+                                        </div>
+                                        <div class="flex items-center gap-1.5 font-bold text-amber-500 ml-auto">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                                            ${route.total_km} KMs
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-right hidden sm:block">
+                                    <div class="text-3xl font-black text-white/10">0${index + 1}</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Modern Horizontal Travel Progress Path -->
+                            <div class="mt-3 mb-2 bg-slate-900/40 p-3 rounded-lg border border-slate-700/40 flex items-center overflow-x-auto custom-scrollbar pb-3">
+                                ${pathTimeline}
+                            </div>
+                            
+                            <!-- M-Indicator inspired tracker accent -->
+                            <div class="bg-slate-950 p-4 rounded-b-lg border-x border-b border-slate-800 shadow-inner relative mt-4">
+                                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 via-yellow-500 to-green-600 opacity-80"></div>
+                                <div class="flex items-stretch gap-2 overflow-x-auto pb-2 pt-2 custom-scrollbar">
+                                    ${timelineBlocks}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Route card click (resets specific segment highlighting)
+                    card.firstElementChild.addEventListener('click', (e) => {
+                        // Prevent triggering if clicked on a mode block (handled separately below)
+                        if (e.target.closest('.mode-block-click')) return;
+                        
+                        document.querySelectorAll('.route-card > div').forEach(el => {
+                            el.classList.remove('border-cyan-500');
+                            el.classList.add('border-slate-700', 'hover:border-slate-500');
+                        });
+                        card.firstElementChild.classList.remove('border-slate-700', 'hover:border-slate-500');
+                        card.firstElementChild.classList.add('border-cyan-500');
+                        
+                        drawSegmentedMap(mapData, origin, destination, route.mode_sequence, index);
+                    });
+                    
+                    // Attach listeners to individual mode blocks for segment isolation
+                    card.querySelectorAll('.mode-block-click').forEach(block => {
+                        block.addEventListener('click', (e) => {
+                            e.stopPropagation(); // prevent card click
+                            
+                            // Highlight the parent card too
+                            document.querySelectorAll('.route-card > div').forEach(el => {
+                                el.classList.remove('border-cyan-500');
+                                el.classList.add('border-slate-700', 'hover:border-slate-500');
+                            });
+                            card.firstElementChild.classList.remove('border-slate-700', 'hover:border-slate-500');
+                            card.firstElementChild.classList.add('border-cyan-500');
+                            
+                            const blockIndex = parseInt(block.getAttribute('data-block-index'));
+                            drawSegmentedMap(mapData, origin, destination, route.mode_sequence, index, blockIndex);
+                        });
+                    });
+                    
+                    container.appendChild(card);
+                });
+
+            } catch (error) {
+                container.innerHTML = `
+                    <div class="p-5 bg-red-900/20 border border-red-500/40 text-red-400 rounded-xl">
+                        <p class="font-bold mb-1">Connection Error</p>
+                        <p class="text-sm">${error.message}</p>
+                        <p class="text-xs mt-3 opacity-70">Make sure the Flask server is running locally on 127.0.0.1:5000</p>
+                    </div>`;
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        });
+    </script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.5); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.3); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.5); }
+    </style>
+</body>
+</html>
