@@ -1,1 +1,0 @@
-# HACKATHON-2026
