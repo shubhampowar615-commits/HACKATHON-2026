@@ -16,19 +16,7 @@ from logic import calculate_optimal_routes
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/')
-def home():
-    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    index_path = os.path.join(root_dir, 'index.html')
-    if os.path.exists(index_path):
-        with open(index_path, 'r', encoding='utf-8') as f:
-            return f.read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
-    return "Mumbai Commute Optimizer API is running", 200
-
-@app.route('/api/route-optimize', methods=['POST', 'OPTIONS'])
 def optimize_route():
-    if request.method == 'OPTIONS':
-        return jsonify({"status": "ok"}), 200
     try:
         data = request.get_json(silent=True)
         if not data:
@@ -52,11 +40,23 @@ def optimize_route():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/route-optimize', methods=['POST', 'OPTIONS'])
-def optimize_route_sub():
-    return optimize_route()
+@app.route('/', defaults={'path': ''}, methods=['GET', 'POST', 'OPTIONS'])
+@app.route('/<path:path>', methods=['GET', 'POST', 'OPTIONS'])
+def catch_all(path):
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "ok"}), 200
+        
+    if request.method == 'POST':
+        return optimize_route()
+        
+    # GET request
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    index_path = os.path.join(root_dir, 'index.html')
+    if os.path.exists(index_path):
+        with open(index_path, 'r', encoding='utf-8') as f:
+            return f.read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
+    return f"Mumbai Commute Optimizer API: received GET /{path}", 200
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
-
