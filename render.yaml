@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: mumbai-transit-optimizer
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn server:app
+    plan: free
+

@@ -1,0 +1,1786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mumbai Multimodal Commute Optimizer</title>
+    <!-- Tailwind CSS via Play CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet Maps CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet Maps JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        .mode-block { transition: transform 0.2s ease-in-out; }
+        .mode-block:hover { transform: translateY(-2px); }
+        .color-Train { background-color: #22c55e; } /* Green */
+        .color-Local { background-color: #22c55e; } /* Green */
+        .color-Metro { background-color: #3b82f6; } /* Blue */
+        .color-Auto { background-color: #eab308; } /* Yellow */
+        .color-Taxi { background-color: #eab308; } /* Yellow */
+        .color-Bus { background-color: #ef4444; } /* Red */
+        .color-Walking { background-color: #94a3b8; } /* Slate */
+        
+        /* Authentic Google Maps cartography */
+        .leaflet-tile-pane {
+            filter: contrast(102%) brightness(98%);
+        }
+        
+        .station-pin {
+            transition: transform 0.2s ease;
+        }
+        .station-pin:hover {
+            transform: scale(1.3);
+            z-index: 999 !important;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.5); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.3); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.5); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 min-h-screen flex items-center justify-center p-4 md:p-8 font-sans">
+    
+    <div class="max-w-7xl w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Left Rail: Inputs & Preferences -->
+        <div class="bg-slate-900 border border-cyan-500/30 rounded-2xl p-6 lg:p-8 shadow-[0_0_30px_rgba(6,182,212,0.15)] flex flex-col gap-7 h-full relative">
+            <!-- Subtle background glow -->
+            <div class="absolute -top-24 -left-24 w-48 h-48 bg-cyan-500/20 rounded-full blur-[60px] pointer-events-none"></div>
+
+            <div class="relative z-10">
+                <h1 class="text-3xl font-extrabold bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent mb-2 tracking-tight">Smart Mobility</h1>
+                <p class="text-slate-400 text-sm font-medium flex items-center gap-2">
+                    <span class="relative flex h-2.5 w-2.5">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.8)]"></span>
+                    </span>
+                    Mumbai Multimodal Optimizer
+                </p>
+            </div>
+            
+            <!-- Google Maps Mode Selector Tabs -->
+            <div class="flex items-center gap-1.5 p-1 bg-slate-950/70 border border-slate-800 rounded-xl relative z-20">
+                <button type="button" class="mode-tab flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm" data-mode="all">
+                    <span>⚡ Best</span>
+                </button>
+                <button type="button" class="mode-tab flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all flex items-center justify-center gap-1" data-mode="transit">
+                    <span>🚆 Train</span>
+                </button>
+                <button type="button" class="mode-tab flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all flex items-center justify-center gap-1" data-mode="cab">
+                    <span>🚗 Cabs</span>
+                </button>
+            </div>
+
+            <div class="space-y-2 relative z-30">
+                <!-- Source Location Input with Dropdown & Geolocation -->
+                <div class="relative">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="block text-xs font-bold text-cyan-400 uppercase tracking-wider">Source Location</label>
+                        <button type="button" id="useCurrentLocationBtn" class="text-[11px] text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1.5 transition-all px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 shadow-sm" title="Detect your live GPS position">
+                            <span class="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                            <span>📍 My Location</span>
+                        </button>
+                    </div>
+                    <div class="relative group">
+                        <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500 group-focus-within:text-cyan-400 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        </div>
+                        <input type="text" id="origin" placeholder="Search station or area (e.g. Kalyan, Bandra)" autocomplete="off" class="w-full bg-slate-950/70 border border-slate-700/80 rounded-xl pl-11 pr-9 py-3.5 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all shadow-inner text-sm font-medium">
+                        <button type="button" id="clearOriginBtn" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 hidden" title="Clear">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                    <!-- Autocomplete Dropdown for Origin -->
+                    <div id="originDropdown" class="absolute left-0 right-0 top-full mt-1.5 bg-slate-900/95 backdrop-blur-xl border border-cyan-500/40 rounded-xl shadow-[0_15px_35px_rgba(0,0,0,0.85)] z-50 max-h-56 overflow-y-auto hidden custom-scrollbar divide-y divide-slate-800"></div>
+                </div>
+                
+                <!-- Swap Locations Button -->
+                <div class="flex justify-end pr-4 -my-1 relative z-30">
+                    <button type="button" id="swapLocationsBtn" class="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 border border-cyan-500/30 flex items-center justify-center text-cyan-400 hover:text-cyan-300 shadow-md transition-all active:scale-95 group" title="Swap Source and Destination">
+                        <svg class="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path></svg>
+                    </button>
+                </div>
+
+                <!-- Destination Location Input with Dropdown -->
+                <div class="relative">
+                    <label class="block text-xs font-bold text-cyan-400 uppercase tracking-wider mb-1.5">Destination Location</label>
+                    <div class="relative group">
+                        <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500 group-focus-within:text-cyan-400 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                        </div>
+                        <input type="text" id="destination" placeholder="Search destination (e.g. Marine Lines, BKC, CSMT)" autocomplete="off" class="w-full bg-slate-950/70 border border-slate-700/80 rounded-xl pl-11 pr-9 py-3.5 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all shadow-inner text-sm font-medium">
+                        <button type="button" id="clearDestBtn" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 hidden" title="Clear">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                    <!-- Autocomplete Dropdown for Destination -->
+                    <div id="destDropdown" class="absolute left-0 right-0 top-full mt-1.5 bg-slate-900/95 backdrop-blur-xl border border-cyan-500/40 rounded-xl shadow-[0_15px_35px_rgba(0,0,0,0.85)] z-50 max-h-56 overflow-y-auto hidden custom-scrollbar divide-y divide-slate-800"></div>
+                </div>
+            </div>
+
+            <div class="space-y-4 relative z-10">
+                <p class="text-xs font-bold text-cyan-400 uppercase tracking-wider">Optimization Weights</p>
+                <div class="grid grid-cols-1 gap-3">
+                    <label class="flex items-center justify-between p-3.5 rounded-xl bg-slate-950/50 border border-slate-700/50 cursor-pointer hover:border-cyan-500/50 hover:bg-slate-800/50 transition-all group shadow-sm">
+                        <span class="flex items-center gap-3">
+                            <span class="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400 group-hover:bg-cyan-500/20 transition-colors shadow-inner">⚡</span>
+                            <span class="text-sm font-bold text-slate-300 group-hover:text-white transition-colors">Fastest Route</span>
+                        </span>
+                        <input type="checkbox" id="fastest" checked class="w-5 h-5 accent-cyan-500 rounded cursor-pointer border-slate-600">
+                    </label>
+                    <label class="flex items-center justify-between p-3.5 rounded-xl bg-slate-950/50 border border-slate-700/50 cursor-pointer hover:border-emerald-500/50 hover:bg-slate-800/50 transition-all group shadow-sm">
+                        <span class="flex items-center gap-3">
+                            <span class="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-colors shadow-inner">💰</span>
+                            <span class="text-sm font-bold text-slate-300 group-hover:text-white transition-colors">Cheapest Route</span>
+                        </span>
+                        <input type="checkbox" id="cheapest" class="w-5 h-5 accent-emerald-500 rounded cursor-pointer border-slate-600">
+                    </label>
+                    <label class="flex items-center justify-between p-3.5 rounded-xl bg-slate-950/50 border border-slate-700/50 cursor-pointer hover:border-purple-500/50 hover:bg-slate-800/50 transition-all group shadow-sm">
+                        <span class="flex items-center gap-3">
+                            <span class="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400 group-hover:bg-purple-500/20 transition-colors shadow-inner">🛡️</span>
+                            <span class="text-sm font-bold text-slate-300 group-hover:text-white transition-colors">Reliable Route</span>
+                        </span>
+                        <input type="checkbox" id="reliable" class="w-5 h-5 accent-purple-500 rounded cursor-pointer border-slate-600">
+                    </label>
+                </div>
+            </div>
+
+            <button id="calculateBtn" class="group relative w-full flex justify-center py-4 px-4 border border-transparent text-sm font-black rounded-xl text-slate-900 bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 focus:ring-offset-slate-900 transition-all shadow-[0_0_20px_rgba(34,211,238,0.4)] transform hover:-translate-y-1 uppercase tracking-widest overflow-hidden z-10 mt-2">
+                <span class="absolute inset-0 w-full h-full -mt-1 rounded-lg opacity-30 bg-gradient-to-b from-transparent via-transparent to-black"></span>
+                <span class="relative flex items-center gap-2">
+                    <svg class="w-5 h-5 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                    Calculate Optimal Itinerary
+                </span>
+            </button>
+        </div>
+
+        <!-- Center Pane: Map & Interactive Visual Timeline -->
+        <div class="lg:col-span-2 flex flex-col gap-6 h-full">
+            
+            <!-- Map Visualization Card -->
+            <div class="bg-slate-900 border border-cyan-500/40 rounded-xl overflow-hidden shadow-[0_0_20px_rgba(6,182,212,0.15)] h-[400px] relative shrink-0">
+                <div id="map" class="w-full h-full z-0"></div>
+                <div class="absolute top-4 right-4 z-[400]">
+                    <span class="px-3 py-1 bg-slate-900/80 backdrop-blur-sm text-cyan-400 border border-cyan-500/30 rounded-full text-xs font-bold tracking-wide shadow-lg">LIVE GIS MAPPING</span>
+                </div>
+            </div>
+
+            <!-- Results Card -->
+            <div class="bg-slate-900 border border-cyan-500/40 rounded-xl p-6 shadow-[0_0_20px_rgba(6,182,212,0.15)] flex flex-col flex-1 min-h-[400px]">
+                <h2 class="text-xl font-semibold flex items-center gap-3 mb-6">
+                    <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] animate-pulse"></span>
+                    Routing Analytics
+                </h2>
+                
+                <div id="resultsContainer" class="flex-1 overflow-y-auto space-y-5 pr-2 custom-scrollbar">
+                    <div class="h-full min-h-[300px] flex flex-col items-center justify-center text-slate-500 border-2 border-dashed border-slate-700/70 rounded-xl bg-slate-800/20">
+                        <svg class="w-12 h-12 mb-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                        <p class="text-center px-4">Enter any origin and destination<br>to generate smart itineraries.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Map restricted to India's borders
+        const indiaBounds = [
+            [6.75, 68.16], // Southwest coordinates
+            [35.50, 97.40] // Northeast coordinates
+        ];
+        
+        const map = L.map('map', {
+            maxBounds: indiaBounds,
+            maxBoundsViscosity: 1.0, 
+            minZoom: 5 
+        }).setView([19.0760, 72.8777], 11);
+
+        // Using Google Maps tiles (works without API key) for authentic look
+        L.tileLayer('http://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}', {
+            attribution: 'Map data &copy; Google',
+            maxZoom: 20
+        }).addTo(map);
+        let currentRouteLayer = null;
+        let previewMarker = null;
+        let userLocationMarker = null;
+
+        // ==========================================
+        // MUMBAI TRANSIT & LANDMARKS DATABASE (65+ Locations)
+        // ==========================================
+        const MUMBAI_LOCATIONS = [
+            // Western Line
+            { name: "Churchgate", category: "Western Line Terminal (South Mumbai)", type: "train", line: "Western Line", lat: 18.9322, lon: 72.8264, keywords: "south mumbai town terminus marine drive" },
+            { name: "Marine Lines", category: "Western Line (South Mumbai)", type: "train", line: "Western Line", lat: 18.9442, lon: 72.8236, keywords: "marine drive queens necklace south mumbai" },
+            { name: "Charni Road", category: "Western Line (Girgaon Chowpatty)", type: "train", line: "Western Line", lat: 18.9519, lon: 72.8188, keywords: "chowpatty girgaon south mumbai beach" },
+            { name: "Grant Road", category: "Western Line (Lamington Road)", type: "train", line: "Western Line", lat: 18.9632, lon: 72.8160, keywords: "electronics market south mumbai" },
+            { name: "Mumbai Central", category: "Western Line & National Junction", type: "train", line: "Western Line", lat: 18.9696, lon: 72.8193, keywords: "bct central outstation" },
+            { name: "Mahalaxmi", category: "Western Line (Racecourse / Dhobi Ghat)", type: "train", line: "Western Line", lat: 18.9828, lon: 72.8242, keywords: "racecourse temple dhobi ghat" },
+            { name: "Lower Parel", category: "Western Line (Corporate Hub & Mills)", type: "hub", line: "Commercial Hub", lat: 18.9953, lon: 72.8306, keywords: "high street phoenix palladium corporate offices" },
+            { name: "Prabhadevi", category: "Western Line (Siddhivinayak Gateway)", type: "train", line: "Western Line", lat: 19.0084, lon: 72.8354, keywords: "elphinstone road siddhivinayak temple" },
+            { name: "Dadar (Western)", category: "Western Line Major Central Interchange", type: "train", line: "Western Line", lat: 19.0178, lon: 72.8478, keywords: "central interchange shivaji park flower market" },
+            { name: "Matunga Road", category: "Western Line", type: "train", line: "Western Line", lat: 19.0270, lon: 72.8428, keywords: "matunga west colleges" },
+            { name: "Mahim", category: "Western & Harbour Interchange", type: "train", line: "Western Line", lat: 19.0400, lon: 72.8436, keywords: "dargah causeway interchange" },
+            { name: "Bandra", category: "Western Line Transit Hub & Queen of Suburbs", type: "train", line: "Western Line", lat: 19.0544, lon: 72.8402, keywords: "bandra west linking road hill road sea link" },
+            { name: "Khar Road", category: "Western Line", type: "train", line: "Western Line", lat: 19.0699, lon: 72.8368, keywords: "khar west linking road" },
+            { name: "Santacruz", category: "Western Line (Airport Domestic Access)", type: "train", line: "Western Line", lat: 19.0818, lon: 72.8415, keywords: "domestic airport t1 junction" },
+            { name: "Vile Parle", category: "Western Line (Colleges & Airport)", type: "train", line: "Western Line", lat: 19.0999, lon: 72.8439, keywords: "svkm nmims mithibai parle g" },
+            { name: "Andheri", category: "Western Line & Metro Line 1 Major Hub", type: "metro", line: "Western & Metro 1", lat: 19.1197, lon: 72.8464, keywords: "metro junction commercial hub sv road" },
+            { name: "Jogeshwari", category: "Western Line & Caves", type: "train", line: "Western Line", lat: 19.1360, lon: 72.8492, keywords: "caves highway sv road" },
+            { name: "Ram Mandir", category: "Western Line (Oshiwara)", type: "train", line: "Western Line", lat: 19.1530, lon: 72.8490, keywords: "hub town oshiwara corporate" },
+            { name: "Goregaon", category: "Western & Harbour Line Hub", type: "train", line: "Western Line", lat: 19.1646, lon: 72.8490, keywords: "inorbit film city hub" },
+            { name: "Malad", category: "Western Line (Suburban Hub)", type: "train", line: "Western Line", lat: 19.1860, lon: 72.8485, keywords: "infinity mall link road mindspace" },
+            { name: "Kandivali", category: "Western Line", type: "train", line: "Western Line", lat: 19.2045, lon: 72.8522, keywords: "lokhandwala mahavir nagar" },
+            { name: "Borivali", category: "Western Line Major Suburban Terminal", type: "train", line: "Western Line", lat: 19.2290, lon: 72.8570, keywords: "national park outstation trains express stop" },
+            { name: "Dahisar", category: "Western Line & Metro Line 2A/7 Interchange", type: "metro", line: "Western & Metro 2A/7", lat: 19.2501, lon: 72.8593, keywords: "toll naka metro terminal" },
+            { name: "Mira Road", category: "Western Suburban Line", type: "train", line: "Western Line", lat: 19.2812, lon: 72.8561, keywords: "mira bhayandar kanakia" },
+            { name: "Bhayandar", category: "Western Suburban Line", type: "train", line: "Western Line", lat: 19.3123, lon: 72.8530, keywords: "creek bridge uttan" },
+            { name: "Vasai Road", category: "Western Line Major Junction", type: "train", line: "Western Line", lat: 19.3800, lon: 72.8300, keywords: "vasai fort diva bypass" },
+            { name: "Virar", category: "Western Line Suburban Terminal", type: "train", line: "Western Line", lat: 19.4539, lon: 72.8090, keywords: "terminus arnala jaldham" },
+
+            // Central Line
+            { name: "CSMT (CST)", category: "Central Line UNESCO World Heritage Terminus", type: "train", line: "Central Line", lat: 18.9401, lon: 72.8354, keywords: "vt terminus fort south mumbai heritage" },
+            { name: "Masjid Bunder", category: "Central & Harbour Line Wholesale Market", type: "train", line: "Central Line", lat: 18.9532, lon: 72.8390, keywords: "wholesale market port dock" },
+            { name: "Sandhurst Road", category: "Central & Harbour Double-Decker Junction", type: "train", line: "Central Line", lat: 18.9610, lon: 72.8398, keywords: "harbour flyover junction" },
+            { name: "Byculla", category: "Central Line (Zoo & Heritage)", type: "train", line: "Central Line", lat: 18.9774, lon: 72.8329, keywords: "rani baug zoo hospital" },
+            { name: "Chinchpokli", category: "Central Line", type: "train", line: "Central Line", lat: 18.9908, lon: 72.8326, keywords: "lalbaug cha raja central" },
+            { name: "Currey Road", category: "Central Line (near Lower Parel)", type: "train", line: "Central Line", lat: 18.9967, lon: 72.8326, keywords: "bharat mata lower parel east" },
+            { name: "Parel", category: "Central Line (Medical Hub)", type: "train", line: "Central Line", lat: 19.0090, lon: 72.8378, keywords: "kem hospital tata memorial wadia" },
+            { name: "Dadar (Central)", category: "Central Line Major Junction", type: "train", line: "Central Line", lat: 19.0178, lon: 72.8478, keywords: "dr interchange central terminus flower market" },
+            { name: "Matunga (Central)", category: "Central Line (Cultural Hub)", type: "train", line: "Central Line", lat: 19.0269, lon: 72.8553, keywords: "udipi cafes south indian hub" },
+            { name: "Sion", category: "Central Line (LTT Gateway)", type: "train", line: "Central Line", lat: 19.0401, lon: 72.8617, keywords: "circle fort somaiya bk" },
+            { name: "Kurla", category: "Central & Harbour Line Mega Junction", type: "train", line: "Central Line", lat: 19.0657, lon: 72.8793, keywords: "ltt terminus phoenix marketcity interchange" },
+            { name: "Vidyavihar", category: "Central Line (Somaiya Campus)", type: "train", line: "Central Line", lat: 19.0798, lon: 72.8973, keywords: "somaiya vidyavihar university" },
+            { name: "Ghatkopar", category: "Central & Metro Line 1 Major Interchange", type: "metro", line: "Central & Metro 1", lat: 19.0864, lon: 72.9081, keywords: "metro 1 terminus r-city mall khau galli" },
+            { name: "Vikhroli", category: "Central Line (Godrej Campus)", type: "train", line: "Central Line", lat: 19.1107, lon: 72.9298, keywords: "godrej one eastern express highway" },
+            { name: "Kanjurmarg", category: "Central Line (Powai Access Gateway)", type: "train", line: "Central Line", lat: 19.1302, lon: 72.9357, keywords: "powai connection dumas corporate" },
+            { name: "Bhandup", category: "Central Line", type: "train", line: "Central Line", lat: 19.1448, lon: 72.9378, keywords: "industrial estate dreams mall" },
+            { name: "Nahur", category: "Central Line", type: "train", line: "Central Line", lat: 19.1558, lon: 72.9431, keywords: "airoli link bridge central" },
+            { name: "Mulund", category: "Central Line Suburban Hub", type: "train", line: "Central Line", lat: 19.1726, lon: 72.9563, keywords: "r mall check naka prince of suburbs" },
+            { name: "Thane", category: "Central & Trans-Harbour Major Junction", type: "train", line: "Central Line", lat: 19.1860, lon: 72.9757, keywords: "city of lakes viviana trans-harbour junction" },
+            { name: "Kalwa", category: "Central Line", type: "train", line: "Central Line", lat: 19.1983, lon: 72.9961, keywords: "bridge parsik tunnel" },
+            { name: "Mumbra", category: "Central Line", type: "train", line: "Central Line", lat: 19.1764, lon: 73.0239, keywords: "bypass toll retibunder" },
+            { name: "Diva", category: "Central & Panvel Junction", type: "train", line: "Central Line", lat: 19.1887, lon: 73.0427, keywords: "vasai panvel rail link junction" },
+            { name: "Kopar", category: "Central Line", type: "train", line: "Central Line", lat: 19.2139, lon: 73.0768, keywords: "upper lower level bridge" },
+            { name: "Dombivli", category: "Central Line Fast Express Hub", type: "train", line: "Central Line", lat: 19.2183, lon: 73.0867, keywords: "cultural capital midc fast train hub" },
+            { name: "Kalyan", category: "Central Line Major Northern Junction", type: "train", line: "Central Line", lat: 19.2437, lon: 73.1355, keywords: "kasara karjat bifurcation junction" },
+
+            // Harbour Line & Navi Mumbai
+            { name: "Vadala Road", category: "Harbour Line Main Interchange", type: "train", line: "Harbour Line", lat: 19.0169, lon: 72.8588, keywords: "monorail bandra panvel split" },
+            { name: "Chembur", category: "Harbour Line & Monorail Terminal", type: "train", line: "Harbour Line", lat: 19.0624, lon: 72.8997, keywords: "eastern freeway monorail junction" },
+            { name: "Govandi", category: "Harbour Line", type: "train", line: "Harbour Line", lat: 19.0553, lon: 72.9150, keywords: "deonar dump ground freeway" },
+            { name: "Mankhurd", category: "Harbour Line (Navi Mumbai Gateway)", type: "train", line: "Harbour Line", lat: 19.0494, lon: 72.9328, keywords: "vashi bridge creek gateway" },
+            { name: "Vashi", category: "Navi Mumbai Commercial Capital", type: "train", line: "Harbour Line", lat: 19.0771, lon: 72.9986, keywords: "inorbit apmc palm beach sector 17" },
+            { name: "Sanpada", category: "Harbour & Trans-Harbour Line", type: "train", line: "Harbour Line", lat: 19.0655, lon: 73.0089, keywords: "carshed palm beach junction" },
+            { name: "Nerul", category: "Harbour & Uran Line Junction", type: "train", line: "Harbour Line", lat: 19.0330, lon: 73.0177, keywords: "dy patil stadium uran line" },
+            { name: "Seawoods Grand Central", category: "Harbour Line Mall & Transit Terminal", type: "train", line: "Harbour Line", lat: 19.0206, lon: 73.0172, keywords: "nexus mall modern railway station" },
+            { name: "Belapur CBD", category: "Navi Mumbai Central Business District", type: "train", line: "Harbour Line", lat: 19.0189, lon: 73.0389, keywords: "cbd konkan bhavan rbi metro line 1" },
+            { name: "Kharghar", category: "Harbour & Navi Mumbai Metro Line", type: "metro", line: "Harbour & Metro", lat: 19.0433, lon: 73.0683, keywords: "utsav chowk central park golf course" },
+            { name: "Panvel", category: "Harbour Line Suburban Terminal", type: "train", line: "Harbour Line", lat: 18.9894, lon: 73.1175, keywords: "mumbai pune expressway airport outstation" },
+
+            // Major Business Districts & Metro Hubs
+            { name: "Bandra Kurla Complex (BKC)", category: "Financial Capital & Underground Metro 3", type: "hub", line: "Commercial Hub", lat: 19.0657, lon: 72.8687, keywords: "bse nse mca us consulate jio world convention" },
+            { name: "Powai (Hiranandani)", category: "Tech Capital & IIT Bombay Hub", type: "hub", line: "Tech District", lat: 19.1176, lon: 72.9060, keywords: "iit bombay lakeside startups galleria" },
+            { name: "Nariman Point", category: "South Mumbai Heritage Financial District", type: "hub", line: "Financial Hub", lat: 18.9256, lon: 72.8242, keywords: "air india trident vidhyan bhavan south mumbai" },
+            { name: "Colaba (Gateway of India)", category: "South Mumbai Heritage & Seafront", type: "hub", line: "Heritage Hub", lat: 18.9067, lon: 72.8147, keywords: "taj hotel gateway causeway south mumbai" },
+            { name: "Fort (Flora Fountain)", category: "Historic Financial & Legal District", type: "hub", line: "Heritage Hub", lat: 18.9345, lon: 72.8335, keywords: "bombay high court bse flora fountain" },
+            { name: "Worli (Sea Face)", category: "Coastal Road & Corporate District", type: "hub", line: "Commercial Hub", lat: 19.0134, lon: 72.8154, keywords: "bandra worli sea link coastal road doordarshan" },
+            { name: "SEEPZ Andheri", category: "IT & Special Economic Zone", type: "hub", line: "Tech District", lat: 19.1278, lon: 72.8753, keywords: "midc andheri east metro 3 underground sez" },
+            { name: "CSMI Airport (T2)", category: "International Terminal (Sahar)", type: "hub", line: "Airport", lat: 19.0968, lon: 72.8743, keywords: "airport t2 international flights metro 3" },
+            { name: "Mumbai Domestic Airport (T1)", category: "Domestic Terminal (Santacruz)", type: "hub", line: "Airport", lat: 19.0896, lon: 72.8532, keywords: "airport t1 domestic flights western express" }
+        ];
+
+        // Set location directly from interactive map pin popups
+        window.setMapLocation = function(field, name, lat, lon) {
+            const input = document.getElementById(field);
+            if (!input) return;
+            input.value = name;
+            
+            const clearBtn = document.getElementById(field === 'origin' ? 'clearOriginBtn' : 'clearDestBtn');
+            if (clearBtn) clearBtn.classList.remove('hidden');
+            
+            document.getElementById('originDropdown')?.classList.add('hidden');
+            document.getElementById('destDropdown')?.classList.add('hidden');
+            
+            map.flyTo([lat, lon], 13);
+            
+            if (field === 'origin') {
+                const destInput = document.getElementById('destination');
+                if (!destInput.value) destInput.focus();
+            }
+        };
+
+        // Add clickable transit pins across Mumbai on the Google map
+        function addMumbaiTransitMarkers() {
+            const majorHubs = [
+                "Churchgate", "Marine Lines", "CSMT (CST)", "Dadar (Western)", 
+                "Bandra", "Bandra Kurla Complex (BKC)", "Andheri", "Borivali", 
+                "Ghatkopar", "Kurla", "Powai (Hiranandani)", "Thane", "Vashi", "Kalyan"
+            ];
+            
+            majorHubs.forEach(hubName => {
+                const loc = MUMBAI_LOCATIONS.find(l => l.name === hubName);
+                if (!loc) return;
+                
+                const pinIcon = L.divIcon({
+                    className: 'station-pin',
+                    html: `
+                        <div class="flex items-center justify-center w-6 h-6 rounded-full bg-slate-900 border-2 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.8)] text-[10px] font-black text-cyan-300 cursor-pointer hover:border-white transition-all">
+                            ${loc.type === 'metro' ? '🚇' : loc.type === 'hub' ? '🏢' : '🚂'}
+                        </div>
+                    `,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                });
+                
+                const marker = L.marker([loc.lat, loc.lon], { icon: pinIcon }).addTo(map);
+                
+                const popupContent = `
+                    <div class="p-1 min-w-[190px]">
+                        <div class="flex items-center gap-1.5 font-black text-sm text-slate-900 mb-0.5">
+                            <span>${loc.type === 'metro' ? '🚇' : loc.type === 'hub' ? '🏢' : '🚂'}</span>
+                            <span>${loc.name}</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mb-2.5 font-medium leading-tight">${loc.category}</p>
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <button onclick="setMapLocation('origin', '${loc.name}', ${loc.lat}, ${loc.lon})" class="px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-sm">📍 Set Start</button>
+                            <button onclick="setMapLocation('destination', '${loc.name}', ${loc.lat}, ${loc.lon})" class="px-2 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-xs font-bold transition shadow-sm">🎯 Set Dest</button>
+                        </div>
+                    </div>
+                `;
+                marker.bindPopup(popupContent);
+            });
+        }
+
+        // Substring keyword highlighter
+        function highlightMatch(text, query) {
+            if (!query) return text;
+            const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            return text.replace(regex, `<span class="text-cyan-400 font-black underline decoration-cyan-500/60">$1</span>`);
+        }
+
+        // Dropdown Autocomplete Builder
+        function initAutocomplete(inputId, dropdownId, clearBtnId, isOrigin) {
+            const input = document.getElementById(inputId);
+            const dropdown = document.getElementById(dropdownId);
+            const clearBtn = document.getElementById(clearBtnId);
+            if (!input || !dropdown) return;
+            
+            function renderDropdown(items, query = '') {
+                dropdown.innerHTML = '';
+                
+                // If origin, inject "Use Current Location" option at top
+                if (isOrigin) {
+                    const gpsItem = document.createElement('div');
+                    gpsItem.className = 'p-3 hover:bg-slate-800/90 cursor-pointer flex items-center justify-between transition-colors bg-cyan-950/30';
+                    gpsItem.innerHTML = `
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-sm shadow-inner">📍</span>
+                            <div>
+                                <p class="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                                    Use Current Location
+                                    <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span>
+                                </p>
+                                <p class="text-[10px] text-slate-400">Detect device GPS coordinates</p>
+                            </div>
+                        </div>
+                        <span class="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">GPS</span>
+                    `;
+                    gpsItem.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        detectCurrentLocation();
+                        dropdown.classList.add('hidden');
+                    });
+                    dropdown.appendChild(gpsItem);
+                }
+                
+                if (items.length === 0) {
+                    const empty = document.createElement('div');
+                    empty.className = 'p-3 text-center text-xs text-slate-400';
+                    empty.innerHTML = `No matching Mumbai station found.<br><span class="text-[10px] opacity-75">You can still type custom location!</span>`;
+                    dropdown.appendChild(empty);
+                } else {
+                    items.forEach(loc => {
+                        const item = document.createElement('div');
+                        item.className = 'p-2.5 hover:bg-slate-800/90 cursor-pointer flex items-center justify-between transition-colors';
+                        
+                        let badgeColor = 'bg-slate-800 text-slate-400 border border-slate-700';
+                        if (loc.line.includes('Western')) badgeColor = 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30';
+                        else if (loc.line.includes('Central')) badgeColor = 'bg-red-500/15 text-red-300 border border-red-500/30';
+                        else if (loc.line.includes('Harbour')) badgeColor = 'bg-amber-500/15 text-amber-300 border border-amber-500/30';
+                        else if (loc.line.includes('Metro')) badgeColor = 'bg-blue-500/15 text-blue-300 border border-blue-500/30';
+                        else if (loc.line.includes('Hub') || loc.line.includes('District')) badgeColor = 'bg-purple-500/15 text-purple-300 border border-purple-500/30';
+
+                        const icon = loc.type === 'metro' ? '🚇' : loc.type === 'hub' ? '🏢' : '🚂';
+
+                        item.innerHTML = `
+                            <div class="flex items-center gap-2.5 min-w-0 pr-2">
+                                <span class="w-7 h-7 rounded-lg bg-slate-800/90 border border-slate-700/60 flex items-center justify-center text-sm shrink-0 shadow-inner">${icon}</span>
+                                <div class="truncate">
+                                    <p class="text-xs font-bold text-slate-100 truncate">${highlightMatch(loc.name, query)}</p>
+                                    <p class="text-[10px] text-slate-400 truncate">${loc.category}</p>
+                                </div>
+                            </div>
+                            <span class="text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded shrink-0 ${badgeColor}">${loc.line}</span>
+                        `;
+                        
+                        item.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            input.value = loc.name;
+                            dropdown.classList.add('hidden');
+                            if (clearBtn) clearBtn.classList.remove('hidden');
+                            
+                            // Fly map and preview pin
+                            if (previewMarker) map.removeLayer(previewMarker);
+                            const previewIcon = L.divIcon({
+                                className: 'preview-pin',
+                                html: `<div class="w-4 h-4 rounded-full ${isOrigin ? 'bg-emerald-500' : 'bg-cyan-500'} border-2 border-white shadow-[0_0_12px_rgba(34,211,238,0.9)] animate-pulse"></div>`,
+                                iconSize: [16, 16],
+                                iconAnchor: [8, 8]
+                            });
+                            previewMarker = L.marker([loc.lat, loc.lon], { icon: previewIcon }).addTo(map)
+                                .bindPopup(`<b>${isOrigin ? '📍 Origin' : '🎯 Destination'}:</b><br>${loc.name}`)
+                                .openPopup();
+                            map.flyTo([loc.lat, loc.lon], 13);
+                            
+                            if (isOrigin) {
+                                const destInput = document.getElementById('destination');
+                                if (!destInput.value) destInput.focus();
+                            }
+                        });
+                        dropdown.appendChild(item);
+                    });
+                }
+                
+                dropdown.classList.remove('hidden');
+            }
+
+            function filterLocations(query) {
+                const q = query.trim().toLowerCase();
+                if (!q) {
+                    const popular = isOrigin 
+                        ? ["Bandra", "Andheri", "Marine Lines", "Dadar (Western)", "Borivali", "Thane", "CSMT (CST)"]
+                        : ["Bandra Kurla Complex (BKC)", "CSMT (CST)", "Churchgate", "Lower Parel", "Powai (Hiranandani)", "Borivali", "Andheri"];
+                    const matches = MUMBAI_LOCATIONS.filter(l => popular.includes(l.name));
+                    renderDropdown(matches, '');
+                    return;
+                }
+                
+                const matches = MUMBAI_LOCATIONS.filter(loc => {
+                    return loc.name.toLowerCase().includes(q) ||
+                           loc.category.toLowerCase().includes(q) ||
+                           loc.line.toLowerCase().includes(q) ||
+                           (loc.keywords && loc.keywords.toLowerCase().includes(q));
+                }).slice(0, 15);
+                
+                renderDropdown(matches, q);
+            }
+
+            input.addEventListener('input', () => {
+                if (input.value.trim().length > 0) {
+                    if (clearBtn) clearBtn.classList.remove('hidden');
+                } else {
+                    if (clearBtn) clearBtn.classList.add('hidden');
+                }
+                filterLocations(input.value);
+            });
+
+            input.addEventListener('focus', () => {
+                filterLocations(input.value);
+            });
+
+            if (clearBtn) {
+                clearBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    input.value = '';
+                    clearBtn.classList.add('hidden');
+                    input.focus();
+                    filterLocations('');
+                });
+            }
+        }
+
+        // Live Geolocation Detector
+        function detectCurrentLocation() {
+            const originInput = document.getElementById('origin');
+            const clearBtn = document.getElementById('clearOriginBtn');
+            const locBtn = document.getElementById('useCurrentLocationBtn');
+            if (!locBtn) return;
+            const originalBtnHtml = locBtn.innerHTML;
+            
+            if (!navigator.geolocation) {
+                alert("Geolocation is not supported by your browser.");
+                return;
+            }
+
+            locBtn.innerHTML = `<span class="inline-block w-2.5 h-2.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></span> Locating...`;
+            locBtn.disabled = true;
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+
+                    let nearest = null;
+                    let minDist = Infinity;
+                    MUMBAI_LOCATIONS.forEach(loc => {
+                        const d = Math.hypot(loc.lat - lat, loc.lon - lon);
+                        if (d < minDist) {
+                            minDist = d;
+                            nearest = loc;
+                        }
+                    });
+
+                    let locLabel = "Current Location";
+                    if (nearest && minDist < 0.05) {
+                        locLabel = `${nearest.name} (Current Location)`;
+                    }
+
+                    originInput.value = locLabel;
+                    if (clearBtn) clearBtn.classList.remove('hidden');
+
+                    if (userLocationMarker) map.removeLayer(userLocationMarker);
+                    
+                    const gpsIcon = L.divIcon({
+                        className: 'gps-marker',
+                        html: `
+                            <div class="relative flex items-center justify-center w-6 h-6">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-cyan-500 border-2 border-white shadow-lg"></span>
+                            </div>
+                        `,
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12]
+                    });
+
+                    userLocationMarker = L.marker([lat, lon], { icon: gpsIcon }).addTo(map)
+                        .bindPopup(`<b>📍 Your Location</b><br>${locLabel}`)
+                        .openPopup();
+
+                    map.flyTo([lat, lon], 14);
+
+                    locBtn.innerHTML = originalBtnHtml;
+                    locBtn.disabled = false;
+
+                    const destInput = document.getElementById('destination');
+                    if (!destInput.value) destInput.focus();
+                },
+                (error) => {
+                    console.warn("Geolocation error:", error);
+                    locBtn.innerHTML = originalBtnHtml;
+                    locBtn.disabled = false;
+                    alert("Could not detect location. Please select or type your location manually.");
+                },
+                { enableHighAccuracy: true, timeout: 8000 }
+            );
+        }
+
+        // Close dropdowns on outside click or Escape key
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#origin') && !e.target.closest('#originDropdown')) {
+                document.getElementById('originDropdown')?.classList.add('hidden');
+            }
+            if (!e.target.closest('#destination') && !e.target.closest('#destDropdown')) {
+                document.getElementById('destDropdown')?.classList.add('hidden');
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.getElementById('originDropdown')?.classList.add('hidden');
+                document.getElementById('destDropdown')?.classList.add('hidden');
+            }
+        });
+
+        // Initialize autocompletes and location button
+        initAutocomplete('origin', 'originDropdown', 'clearOriginBtn', true);
+        initAutocomplete('destination', 'destDropdown', 'clearDestBtn', false);
+        document.getElementById('useCurrentLocationBtn')?.addEventListener('click', detectCurrentLocation);
+
+        // Swap Origin & Destination
+        document.getElementById('swapLocationsBtn')?.addEventListener('click', () => {
+            const origInput = document.getElementById('origin');
+            const destInput = document.getElementById('destination');
+            const tempVal = origInput.value;
+            origInput.value = destInput.value;
+            destInput.value = tempVal;
+            
+            document.getElementById('clearOriginBtn')?.classList.toggle('hidden', !origInput.value);
+            document.getElementById('clearDestBtn')?.classList.toggle('hidden', !destInput.value);
+            
+            if (origInput.value && destInput.value) {
+                document.getElementById('calculateBtn')?.click();
+            }
+        });
+
+        // Google Maps Mode Filter Tabs
+        let activeModeFilter = 'all';
+        document.querySelectorAll('.mode-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.mode-tab').forEach(t => {
+                    t.className = 'mode-tab flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all flex items-center justify-center gap-1';
+                });
+                tab.className = 'mode-tab flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm';
+                activeModeFilter = tab.getAttribute('data-mode');
+                applyModeFilter(activeModeFilter);
+            });
+        });
+
+        function applyModeFilter(filter) {
+            const transitCards = document.querySelectorAll('.transit-route-card');
+            const roadSection = document.getElementById('roadComparisonsSection');
+            
+            if (filter === 'all') {
+                transitCards.forEach(c => c.classList.remove('hidden'));
+                if (roadSection) roadSection.classList.remove('hidden');
+            } else if (filter === 'transit') {
+                transitCards.forEach(c => c.classList.remove('hidden'));
+                if (roadSection) roadSection.classList.add('hidden');
+            } else if (filter === 'cab') {
+                transitCards.forEach(c => c.classList.add('hidden'));
+                if (roadSection) {
+                    roadSection.classList.remove('hidden');
+                    roadSection.scrollIntoView({ behavior: 'smooth' });
+                }
+            }
+        }
+
+        // High-speed Geocoding: Instant local database lookup first, Nominatim fallback
+        async function getCoordinates(locationStr) {
+            if (!locationStr) return null;
+            const norm = locationStr.trim().toLowerCase();
+            
+            // 1. Instant local match
+            const localMatch = MUMBAI_LOCATIONS.find(loc => {
+                const nameLower = loc.name.toLowerCase();
+                return nameLower === norm || 
+                       norm.includes(nameLower) || 
+                       nameLower.includes(norm.replace(' (current location)', ''));
+            });
+            if (localMatch) return [localMatch.lat, localMatch.lon];
+
+            // 2. Nominatim fallback
+            try {
+                const cleanQuery = locationStr.replace(' (Current Location)', '');
+                const query = encodeURIComponent(cleanQuery + ", Mumbai, Maharashtra, India");
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`);
+                const data = await res.json();
+                if (data && data.length > 0) return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+            } catch (e) { console.error("Geocoding failed", e); }
+            return null;
+        }
+        
+        function getColorHex(mode) {
+            if (mode.includes('Central')) return '#dc2626'; // Authentic Red for Central Railway
+            if (mode.includes('Western')) return '#1d4ed8'; // Authentic Blue for Western Railway
+            if (mode.includes('Harbour')) return '#ea580c'; // Authentic Orange for Harbour Line
+            if (mode.includes('Metro')) return '#06b6d4'; // Cyan for Metro
+            if (mode.includes('Taxi') || mode.includes('Auto') || mode.includes('Uber')) return '#eab308'; // Yellow for Cab/Taxi
+            if (mode.includes('Bus')) return '#b91c1c'; // Deep Red for BEST Bus
+            if (mode.includes('Walk')) return '#94a3b8'; // Slate for Walking
+            return '#2563eb';
+        }
+
+        // ==========================================
+        // EXACT MUMBAI RAILWAY STATION COORDINATES (Zero Ambiguity)
+        // ==========================================
+        const RAILWAY_STATION_COORDS = {
+            // Central Line Main (Kalyan to CSMT)
+            "kalyan": [19.2437, 73.1355],
+            "thakurli": [19.2289, 73.1028],
+            "dombivli": [19.2183, 73.0867],
+            "kopar": [19.2139, 73.0768],
+            "diva": [19.1887, 73.0427],
+            "mumbra": [19.1764, 73.0239],
+            "kalwa": [19.1983, 72.9961],
+            "thane": [19.1860, 72.9757],
+            "mulund": [19.1726, 72.9563],
+            "nahur": [19.1558, 72.9431],
+            "bhandup": [19.1448, 72.9378],
+            "kanjurmarg": [19.1302, 72.9357],
+            "vikhroli": [19.1107, 72.9298],
+            "ghatkopar": [19.0864, 72.9081],
+            "vidyavihar": [19.0798, 72.8973],
+            "kurla": [19.0657, 72.8793],
+            "sion": [19.0401, 72.8617],
+            "matunga (central)": [19.0269, 72.8553],
+            "dadar (central)": [19.0178, 72.8478],
+            "parel": [19.0090, 72.8378],
+            "currey road": [18.9967, 72.8326],
+            "chinchpokli": [18.9908, 72.8326],
+            "byculla": [18.9774, 72.8329],
+            "sandhurst road": [18.9610, 72.8398],
+            "masjid bunder": [18.9532, 72.8390],
+            "csmt (cst)": [18.9401, 72.8354],
+            "csmt": [18.9401, 72.8354],
+
+            // Western Line (Virar to Churchgate)
+            "virar": [19.4539, 72.8090],
+            "vasai road": [19.3800, 72.8300],
+            "bhayandar": [19.3123, 72.8530],
+            "mira road": [19.2812, 72.8561],
+            "dahisar": [19.2501, 72.8593],
+            "borivali": [19.2290, 72.8570],
+            "kandivali": [19.2045, 72.8522],
+            "malad": [19.1860, 72.8485],
+            "goregaon": [19.1646, 72.8490],
+            "ram mandir": [19.1530, 72.8490],
+            "jogeshwari": [19.1360, 72.8492],
+            "andheri": [19.1197, 72.8464],
+            "vile parle": [19.0999, 72.8439],
+            "santacruz": [19.0818, 72.8415],
+            "khar road": [19.0699, 72.8368],
+            "bandra": [19.0544, 72.8402],
+            "mahim": [19.0400, 72.8436],
+            "matunga road": [19.0270, 72.8428],
+            "dadar (western)": [19.0178, 72.8478],
+            "prabhadevi": [19.0084, 72.8354],
+            "lower parel": [18.9953, 72.8306],
+            "mahalaxmi": [18.9828, 72.8242],
+            "mumbai central": [18.9696, 72.8193],
+            "grant road": [18.9632, 72.8160],
+            "charni road": [18.9519, 72.8188],
+            "marine lines": [18.9442, 72.8236],
+            "marine drive": [18.9442, 72.8236],
+            "churchgate": [18.9322, 72.8264],
+
+            // Harbour Line (Panvel to CSMT)
+            "panvel": [18.9894, 73.1175],
+            "kharghar": [19.0433, 73.0683],
+            "belapur cbd": [19.0189, 73.0389],
+            "belapur": [19.0189, 73.0389],
+            "seawoods grand central": [19.0206, 73.0172],
+            "seawoods": [19.0206, 73.0172],
+            "nerul": [19.0330, 73.0177],
+            "juinagar": [19.0543, 73.0135],
+            "sanpada": [19.0655, 73.0089],
+            "vashi": [19.0771, 72.9986],
+            "mankhurd": [19.0494, 72.9328],
+            "govandi": [19.0553, 72.9150],
+            "chembur": [19.0624, 72.8997],
+            "tilak nagar": [19.0664, 72.8943],
+            "chunabhatti": [19.0532, 72.8732],
+            "gtb nagar": [19.0375, 72.8625],
+            "vadala road": [19.0169, 72.8588],
+
+            // Metro Line 1 (Versova to Ghatkopar)
+            "versova": [19.1319, 72.8174],
+            "d.n. nagar": [19.1306, 72.8277],
+            "azad nagar": [19.1287, 72.8364],
+            "western express highway": [19.1158, 72.8564],
+            "chakala": [19.1114, 72.8647],
+            "airport road": [19.1098, 72.8722],
+            "marol naka": [19.1082, 72.8806],
+            "saki naka": [19.1030, 72.8885],
+            "asalpha": [19.0968, 72.8980],
+            "jagruti nagar": [19.0917, 72.9030]
+        };
+
+        const METRO_LINE_1_NAMES = [
+            "Versova", "D.N. Nagar", "Azad Nagar", "Andheri", "Western Express Highway", 
+            "Chakala", "Airport Road", "Marol Naka", "Saki Naka", "Asalpha", "Jagruti Nagar", "Ghatkopar"
+        ];
+
+        const CENTRAL_CORRIDOR_NAMES = [
+            "Kalyan", "Thakurli", "Dombivli", "Kopar", "Diva", "Mumbra", "Kalwa", "Thane", 
+            "Mulund", "Nahur", "Bhandup", "Kanjurmarg", "Vikhroli", "Ghatkopar", "Vidyavihar", 
+            "Kurla", "Sion", "Matunga (Central)", "Dadar (Central)", "Parel", "Currey Road", 
+            "Chinchpokli", "Byculla", "Sandhurst Road", "Masjid Bunder", "CSMT (CST)"
+        ];
+
+        const WESTERN_CORRIDOR_NAMES = [
+            "Virar", "Vasai Road", "Bhayandar", "Mira Road", "Dahisar", "Borivali", "Kandivali", 
+            "Malad", "Goregaon", "Ram Mandir", "Jogeshwari", "Andheri", "Vile Parle", "Santacruz", 
+            "Khar Road", "Bandra", "Mahim", "Matunga Road", "Dadar (Western)", "Prabhadevi", 
+            "Lower Parel", "Mahalaxmi", "Mumbai Central", "Grant Road", "Charni Road", "Marine Lines", "Churchgate"
+        ];
+
+        const HARBOUR_CORRIDOR_NAMES = [
+            "Panvel", "Kharghar", "Belapur CBD", "Seawoods Grand Central", "Nerul", "Juinagar", 
+            "Sanpada", "Vashi", "Mankhurd", "Govandi", "Chembur", "Tilak Nagar", "Kurla", 
+            "Chunabhatti", "GTB Nagar", "Vadala Road", "Sandhurst Road", "Masjid Bunder", "CSMT (CST)"
+        ];
+
+        function findStationIndex(corridor, query) {
+            const q = query.toLowerCase().replace(' (current location)', '').trim();
+            return corridor.findIndex(s => {
+                const sLower = s.toLowerCase();
+                return sLower === q || sLower.startsWith(q) || q.startsWith(sLower);
+            });
+        }
+
+        function getStationCoords(name) {
+            const q = name.toLowerCase().trim();
+            if (RAILWAY_STATION_COORDS[q]) return RAILWAY_STATION_COORDS[q];
+            const loc = MUMBAI_LOCATIONS.find(l => l.name.toLowerCase() === q);
+            return loc ? [loc.lat, loc.lon] : null;
+        }
+
+        function calcGeoDistance(c1, c2) {
+            const R = 6371; // Earth radius in km
+            const dLat = (c2[0] - c1[0]) * Math.PI / 180;
+            const dLon = (c2[1] - c1[1]) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(c1[0] * Math.PI / 180) * Math.cos(c2[0] * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        function calculatePathKm(path) {
+            let total = 0;
+            for (let i = 0; i < path.length - 1; i++) {
+                total += calcGeoDistance(path[i], path[i+1]);
+            }
+            return parseFloat(total.toFixed(1));
+        }
+
+        // Helper to extract continuous station coordinate sequence
+        function buildStationSlice(corridor, startIdx, endIdx) {
+            const path = [];
+            const step = startIdx <= endIdx ? 1 : -1;
+            for (let i = startIdx; i !== endIdx + step; i += step) {
+                const c = getStationCoords(corridor[i]);
+                if (c) path.push(c);
+            }
+            return path;
+        }
+
+        // Builds true Mumbai Railway corridor track path across ALL corridors (NO Bhiwandi detours!)
+        function buildRealRailwayPath(origin, destination, originCoords, destCoords) {
+            const cIdxOrig = findStationIndex(CENTRAL_CORRIDOR_NAMES, origin);
+            const wIdxOrig = findStationIndex(WESTERN_CORRIDOR_NAMES, origin);
+            const hIdxOrig = findStationIndex(HARBOUR_CORRIDOR_NAMES, origin);
+
+            const cIdxDest = findStationIndex(CENTRAL_CORRIDOR_NAMES, destination);
+            const wIdxDest = findStationIndex(WESTERN_CORRIDOR_NAMES, destination);
+            const hIdxDest = findStationIndex(HARBOUR_CORRIDOR_NAMES, destination);
+
+            const origLower = origin.toLowerCase();
+            const destLower = destination.toLowerCase();
+
+            const isDestSouth = destLower.includes('marine') || destLower.includes('churchgate') || 
+                                destLower.includes('csmt') || destLower.includes('colaba') || 
+                                destLower.includes('fort') || destLower.includes('nariman');
+
+            const isDestBKC = destLower.includes('bkc') || destLower.includes('bandra kurla');
+            const isDestPowai = destLower.includes('powai') || destLower.includes('hiranandani');
+            const isDestAirport = destLower.includes('airport');
+
+            const dadarCIdx = findStationIndex(CENTRAL_CORRIDOR_NAMES, "Dadar (Central)");
+            const dadarWIdx = findStationIndex(WESTERN_CORRIDOR_NAMES, "Dadar (Western)");
+            const csmtCIdx = findStationIndex(CENTRAL_CORRIDOR_NAMES, "CSMT (CST)");
+            const csmtHIdx = findStationIndex(HARBOUR_CORRIDOR_NAMES, "CSMT (CST)");
+            const churchgateWIdx = findStationIndex(WESTERN_CORRIDOR_NAMES, "Churchgate");
+            const ghatCIdx = findStationIndex(CENTRAL_CORRIDOR_NAMES, "Ghatkopar");
+            const andheriWIdx = findStationIndex(WESTERN_CORRIDOR_NAMES, "Andheri");
+            const kurlaCIdx = findStationIndex(CENTRAL_CORRIDOR_NAMES, "Kurla");
+            const kurlaHIdx = findStationIndex(HARBOUR_CORRIDOR_NAMES, "Kurla");
+            const bandraWIdx = findStationIndex(WESTERN_CORRIDOR_NAMES, "Bandra");
+            const kanjurCIdx = findStationIndex(CENTRAL_CORRIDOR_NAMES, "Kanjurmarg");
+            const santacruzWIdx = findStationIndex(WESTERN_CORRIDOR_NAMES, "Santacruz");
+
+            // 1. SAME WESTERN LINE (e.g. Borivali to Churchgate / Marine Lines)
+            if (wIdxOrig !== -1 && wIdxDest !== -1) {
+                return [buildStationSlice(WESTERN_CORRIDOR_NAMES, wIdxOrig, wIdxDest)];
+            }
+
+            // 2. SAME CENTRAL LINE (e.g. Kalyan to CSMT, or Thane to Dadar)
+            if (cIdxOrig !== -1 && cIdxDest !== -1) {
+                return [buildStationSlice(CENTRAL_CORRIDOR_NAMES, cIdxOrig, cIdxDest)];
+            }
+
+            // 3. SAME HARBOUR LINE (e.g. Panvel to CSMT / Vashi)
+            if (hIdxOrig !== -1 && hIdxDest !== -1) {
+                return [buildStationSlice(HARBOUR_CORRIDOR_NAMES, hIdxOrig, hIdxDest)];
+            }
+
+            // 4. CENTRAL LINE to WESTERN LINE / SOUTH MUMBAI
+            if (cIdxOrig !== -1 && (wIdxDest !== -1 || isDestSouth)) {
+                // Route A (Dadar Interchange - Standard Google Maps route)
+                const pathA = buildStationSlice(CENTRAL_CORRIDOR_NAMES, cIdxOrig, dadarCIdx);
+                const targetWIdx = wIdxDest !== -1 ? wIdxDest : churchgateWIdx;
+                if (dadarWIdx !== targetWIdx) {
+                    const stepW = dadarWIdx < targetWIdx ? 1 : -1;
+                    const wSlice = buildStationSlice(WESTERN_CORRIDOR_NAMES, dadarWIdx + stepW, targetWIdx);
+                    pathA.push(...wSlice);
+                }
+                if (wIdxDest === -1) {
+                    pathA.push(destCoords);
+                }
+
+                // Route B (CSMT + Taxi alternative for South Mumbai)
+                const pathB = buildStationSlice(CENTRAL_CORRIDOR_NAMES, cIdxOrig, csmtCIdx);
+                pathB.push(destCoords);
+
+                return [pathA, pathB];
+            }
+
+            // 5. CENTRAL LINE to WESTERN SUBURBS (e.g. Kalyan/Thane to Andheri / Borivali)
+            if (cIdxOrig !== -1 && wIdxDest !== -1) {
+                const isAndheri = destLower.includes('andheri') || destLower.includes('versova');
+                if (isAndheri) {
+                    // Metro 1 Route via Ghatkopar
+                    const pathMetro = buildStationSlice(CENTRAL_CORRIDOR_NAMES, cIdxOrig, ghatCIdx);
+                    const ghatMIdx = findStationIndex(METRO_LINE_1_NAMES, "Ghatkopar");
+                    const andhMIdx = findStationIndex(METRO_LINE_1_NAMES, "Andheri");
+                    pathMetro.push(...buildStationSlice(METRO_LINE_1_NAMES, ghatMIdx - 1, andhMIdx));
+                    
+                    // Dadar Route fallback
+                    const pathDadar = buildStationSlice(CENTRAL_CORRIDOR_NAMES, cIdxOrig, dadarCIdx);
+                    pathDadar.push(...buildStationSlice(WESTERN_CORRIDOR_NAMES, dadarWIdx - 1, wIdxDest));
+                    return [pathMetro, pathDadar];
+                }
+
+                // Via Dadar to Borivali / Malad
+                const pathA = buildStationSlice(CENTRAL_CORRIDOR_NAMES, cIdxOrig, dadarCIdx);
+                pathA.push(...buildStationSlice(WESTERN_CORRIDOR_NAMES, dadarWIdx - 1, wIdxDest));
+                return [pathA];
+            }
+
+            // 6. WESTERN LINE to CENTRAL LINE (e.g. Borivali to Thane / CSMT)
+            if (wIdxOrig !== -1 && cIdxDest !== -1) {
+                const isCentralNorth = cIdxDest < dadarCIdx;
+                const pathA = buildStationSlice(WESTERN_CORRIDOR_NAMES, wIdxOrig, dadarWIdx);
+                const stepC = dadarCIdx < cIdxDest ? 1 : -1;
+                pathA.push(...buildStationSlice(CENTRAL_CORRIDOR_NAMES, dadarCIdx + stepC, cIdxDest));
+
+                // If traveling from Western Suburbs to Central Suburbs, Metro 1 is great alternative
+                if (wIdxOrig <= andheriWIdx && isCentralNorth && cIdxDest <= ghatCIdx) {
+                    const pathMetro = buildStationSlice(WESTERN_CORRIDOR_NAMES, wIdxOrig, andheriWIdx);
+                    const andhMIdx = findStationIndex(METRO_LINE_1_NAMES, "Andheri");
+                    const ghatMIdx = findStationIndex(METRO_LINE_1_NAMES, "Ghatkopar");
+                    pathMetro.push(...buildStationSlice(METRO_LINE_1_NAMES, andhMIdx + 1, ghatMIdx));
+                    pathMetro.push(...buildStationSlice(CENTRAL_CORRIDOR_NAMES, ghatCIdx - 1, cIdxDest));
+                    return [pathA, pathMetro];
+                }
+
+                return [pathA];
+            }
+
+            // 7. HARBOUR LINE to CENTRAL / WESTERN / SOUTH
+            if (hIdxOrig !== -1) {
+                if (cIdxDest !== -1) {
+                    const path = buildStationSlice(HARBOUR_CORRIDOR_NAMES, hIdxOrig, kurlaHIdx);
+                    const stepC = kurlaCIdx < cIdxDest ? 1 : -1;
+                    path.push(...buildStationSlice(CENTRAL_CORRIDOR_NAMES, kurlaCIdx + stepC, cIdxDest));
+                    return [path];
+                }
+                if (wIdxDest !== -1 || isDestSouth) {
+                    const path = buildStationSlice(HARBOUR_CORRIDOR_NAMES, hIdxOrig, csmtHIdx);
+                    path.push(destCoords);
+                    return [path];
+                }
+            }
+
+            // 8. TRANSIT TO NON-RAIL HUBS
+            // 8A. To Bandra Kurla Complex (BKC)
+            if (isDestBKC) {
+                if (wIdxOrig !== -1) {
+                    const path = buildStationSlice(WESTERN_CORRIDOR_NAMES, wIdxOrig, bandraWIdx);
+                    path.push(destCoords);
+                    return [path];
+                }
+                if (cIdxOrig !== -1) {
+                    const path = buildStationSlice(CENTRAL_CORRIDOR_NAMES, cIdxOrig, kurlaCIdx);
+                    path.push(destCoords);
+                    return [path];
+                }
+                if (hIdxOrig !== -1) {
+                    const path = buildStationSlice(HARBOUR_CORRIDOR_NAMES, hIdxOrig, kurlaHIdx);
+                    path.push(destCoords);
+                    return [path];
+                }
+            }
+
+            // 8B. To Powai (Hiranandani)
+            if (isDestPowai) {
+                if (cIdxOrig !== -1) {
+                    const path = buildStationSlice(CENTRAL_CORRIDOR_NAMES, cIdxOrig, kanjurCIdx);
+                    path.push(destCoords);
+                    return [path];
+                }
+                if (wIdxOrig !== -1) {
+                    const path = buildStationSlice(WESTERN_CORRIDOR_NAMES, wIdxOrig, andheriWIdx);
+                    const sakiMIdx = findStationIndex(METRO_LINE_1_NAMES, "Saki Naka");
+                    const andhMIdx = findStationIndex(METRO_LINE_1_NAMES, "Andheri");
+                    path.push(...buildStationSlice(METRO_LINE_1_NAMES, andhMIdx + 1, sakiMIdx));
+                    path.push(destCoords);
+                    return [path];
+                }
+            }
+
+            // 8C. To South Mumbai Landmarks (Colaba, Nariman Point, Fort)
+            if (isDestSouth) {
+                if (wIdxOrig !== -1) {
+                    const path = buildStationSlice(WESTERN_CORRIDOR_NAMES, wIdxOrig, churchgateWIdx);
+                    path.push(destCoords);
+                    return [path];
+                }
+                if (cIdxOrig !== -1) {
+                    const path = buildStationSlice(CENTRAL_CORRIDOR_NAMES, cIdxOrig, csmtCIdx);
+                    path.push(destCoords);
+                    return [path];
+                }
+                if (hIdxOrig !== -1) {
+                    const path = buildStationSlice(HARBOUR_CORRIDOR_NAMES, hIdxOrig, csmtHIdx);
+                    path.push(destCoords);
+                    return [path];
+                }
+            }
+
+            // 8D. To Airport (T1 / T2)
+            if (isDestAirport) {
+                if (wIdxOrig !== -1) {
+                    const path = buildStationSlice(WESTERN_CORRIDOR_NAMES, wIdxOrig, santacruzWIdx);
+                    path.push(destCoords);
+                    return [path];
+                }
+                if (cIdxOrig !== -1) {
+                    const path = buildStationSlice(CENTRAL_CORRIDOR_NAMES, cIdxOrig, ghatCIdx);
+                    path.push(destCoords);
+                    return [path];
+                }
+            }
+
+            return null;
+        }
+
+        // Generate map data with railway tracks first (No Bhiwandi highway detours!)
+        async function fetchMapData(origin, destination, distanceRef) {
+            const originCoords = await getCoordinates(origin);
+            const destCoords = await getCoordinates(destination);
+            
+            if (!originCoords || !destCoords) return null;
+            
+            // 1. Try real Mumbai railway corridor track path FIRST
+            const railwayPaths = buildRealRailwayPath(origin, destination, originCoords, destCoords);
+            if (railwayPaths && railwayPaths.length > 0 && railwayPaths[0].length >= 2) {
+                distanceRef.val = calculatePathKm(railwayPaths[0]);
+                return { originCoords, destCoords, latlngsArray: railwayPaths };
+            }
+            
+            // 2. Road / Highway fallback (forces Eastern Express Highway via Thane to avoid Bhiwandi)
+            let latlngsArray = [[originCoords, destCoords]];
+            try {
+                const isKalyanArea = origin.toLowerCase().includes('kalyan') || origin.toLowerCase().includes('dombivli');
+                let osrmUrl;
+                if (isKalyanArea && destCoords[0] < originCoords[0]) {
+                    // Force waypoint through Thane (72.9757, 19.1860) to stay on Eastern Express Highway (EEH)
+                    osrmUrl = `https://router.project-osrm.org/route/v1/driving/${originCoords[1]},${originCoords[0]};72.9757,19.1860;${destCoords[1]},${destCoords[0]}?overview=full&geometries=geojson`;
+                } else {
+                    osrmUrl = `https://router.project-osrm.org/route/v1/driving/${originCoords[1]},${originCoords[0]};${destCoords[1]},${destCoords[0]}?overview=full&geometries=geojson&alternatives=3`;
+                }
+                
+                const osrmRes = await fetch(osrmUrl);
+                const osrmData = await osrmRes.json();
+                
+                if (osrmData.routes && osrmData.routes.length > 0) {
+                    const route = osrmData.routes[0];
+                    distanceRef.val = (route.distance / 1000).toFixed(1);
+                    latlngsArray = osrmData.routes.map(r => r.geometry.coordinates.map(coord => [coord[1], coord[0]]));
+                }
+            } catch(e) {}
+            
+            return { originCoords, destCoords, latlngsArray };
+        }
+
+        // Helper to generate authentic Google Maps style transit line pill badges
+        function renderGoogleBadges(modeSequence) {
+            return modeSequence.map(mode => {
+                let badge = '';
+                if (mode.includes('Central')) {
+                    badge = `<span class="bg-red-600 text-white font-black text-[11px] px-2.5 py-1 rounded shadow-sm inline-flex items-center gap-1.5"><span>🔴</span><span>CSMT (F)</span></span>`;
+                } else if (mode.includes('Western')) {
+                    badge = `<span class="bg-blue-600 text-white font-black text-[11px] px-2.5 py-1 rounded shadow-sm inline-flex items-center gap-1.5"><span>🔵</span><span>Churchgate (S)</span></span>`;
+                } else if (mode.includes('Harbour')) {
+                    badge = `<span class="bg-amber-600 text-white font-black text-[11px] px-2.5 py-1 rounded shadow-sm inline-flex items-center gap-1.5"><span>🟠</span><span>CSMT (H)</span></span>`;
+                } else if (mode.includes('Metro')) {
+                    badge = `<span class="bg-cyan-600 text-white font-black text-[11px] px-2.5 py-1 rounded shadow-sm inline-flex items-center gap-1.5"><span>🚇</span><span>Metro 1</span></span>`;
+                } else if (mode.includes('Taxi') || mode.includes('Auto') || mode.includes('Uber')) {
+                    badge = `<span class="bg-amber-500 text-slate-950 font-black text-[11px] px-2.5 py-1 rounded shadow-sm inline-flex items-center gap-1.5"><span>🚖</span><span>${mode.includes('Taxi') ? 'Taxi' : mode}</span></span>`;
+                } else if (mode.includes('Bus')) {
+                    badge = `<span class="bg-red-700 text-white font-black text-[11px] px-2.5 py-1 rounded shadow-sm inline-flex items-center gap-1.5"><span>🚌</span><span>BEST Bus</span></span>`;
+                } else {
+                    badge = `<span class="text-slate-300 font-bold text-xs inline-flex items-center gap-1"><span>🚶</span></span>`;
+                }
+                return badge;
+            }).join('<span class="text-slate-500 text-xs font-black px-0.5">›</span>');
+        }
+
+        // Draw segmented dynamic route on map with authentic Google Maps styling
+        function drawSegmentedMap(mapData, origin, destination, topRouteModes, routeIndex = 0, highlightedSegmentIndex = null, routeInfo = null) {
+            if (currentRouteLayer) map.removeLayer(currentRouteLayer);
+            if (!mapData) return;
+            
+            // Clean Google Maps style start (A) and end (B) pins
+            const originIcon = L.divIcon({
+                className: 'gmaps-start-pin',
+                html: `
+                    <div class="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500 border-2 border-white shadow-xl text-white text-xs font-black">
+                        A
+                    </div>
+                `,
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
+            });
+
+            const destIcon = L.divIcon({
+                className: 'gmaps-dest-pin',
+                html: `
+                    <div class="flex items-center justify-center w-7 h-7 rounded-full bg-red-600 border-2 border-white shadow-xl text-white text-xs font-black">
+                        B
+                    </div>
+                `,
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
+            });
+
+            const marker1 = L.marker(mapData.originCoords, {icon: originIcon}).bindPopup(`<b>Start:</b> ${origin}${mapData.originInsight ? `<br><span style="font-size: 11px; display: block; margin-top: 4px; color: #ef4444;">Live: ${mapData.originInsight}</span>` : ''}`);
+            const marker2 = L.marker(mapData.destCoords, {icon: destIcon}).bindPopup(`<b>End:</b> ${destination}${mapData.destInsight ? `<br><span style="font-size: 11px; display: block; margin-top: 4px; color: #ef4444;">Live: ${mapData.destInsight}</span>` : ''}`);
+            
+            let layers = [marker1, marker2];
+
+            // Render alternative route polylines in subtle dashed gray (Google Maps style)
+            if (mapData.latlngsArray && mapData.latlngsArray.length > 1) {
+                mapData.latlngsArray.forEach((altLatlngs, aIdx) => {
+                    if (aIdx !== (routeIndex % mapData.latlngsArray.length)) {
+                        const altLine = L.polyline(altLatlngs, {
+                            color: '#94a3b8',
+                            weight: 4,
+                            opacity: 0.5,
+                            dashArray: '8, 8',
+                            lineCap: 'round'
+                        });
+                        layers.unshift(altLine);
+                    }
+                });
+            }
+
+            // Select active route
+            let latlngs = mapData.latlngsArray[routeIndex % mapData.latlngsArray.length];
+            if (!latlngs || latlngs.length < 2) return;
+            
+            let boundsToFit = latlngs;
+
+            // Universal Multimodal Corridor Segment Splitting & Interchange Rendering
+            const hasCentral = topRouteModes.some(m => m.includes('Central'));
+            const hasWestern = topRouteModes.some(m => m.includes('Western'));
+            const hasHarbour = topRouteModes.some(m => m.includes('Harbour'));
+            const hasMetro = topRouteModes.some(m => m.includes('Metro'));
+            const hasRoad = topRouteModes.some(m => m.includes('Taxi') || m.includes('Auto') || m.includes('Uber'));
+
+            // Key Mumbai Interchange Nodes in Polyline
+            const dadarIdx = latlngs.findIndex(pt => Math.abs(pt[0] - 19.0178) < 0.007 && Math.abs(pt[1] - 72.8478) < 0.007);
+            const ghatIdx = latlngs.findIndex(pt => Math.abs(pt[0] - 19.0864) < 0.006 && Math.abs(pt[1] - 72.9081) < 0.006);
+            const andheriIdx = latlngs.findIndex(pt => Math.abs(pt[0] - 19.1197) < 0.006 && Math.abs(pt[1] - 72.8464) < 0.006);
+            const kurlaIdx = latlngs.findIndex(pt => Math.abs(pt[0] - 19.0657) < 0.006 && Math.abs(pt[1] - 72.8793) < 0.006);
+            const csmtIdx = latlngs.findIndex(pt => Math.abs(pt[0] - 18.9401) < 0.006 && Math.abs(pt[1] - 72.8354) < 0.006);
+
+            function createTransferMarker(coord, title, subtitle) {
+                const icon = L.divIcon({
+                    className: 'gmaps-transfer-node',
+                    html: `
+                        <div class="flex items-center justify-center w-6 h-6 rounded-full bg-white border-2 border-slate-900 shadow-xl cursor-pointer hover:scale-125 transition-transform" title="${title}">
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                        </div>
+                    `,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                });
+                return L.marker(coord, { icon }).bindPopup(`<b>${title}</b><br><span style="font-size:11px;color:#475569;">${subtitle}</span>`);
+            }
+
+            // CASE 1: Central Line + Western Line interchange via Dadar
+            if (hasCentral && hasWestern && dadarIdx > 0 && dadarIdx < latlngs.length - 1) {
+                const isOrigCentral = (latlngs[0][1] > 72.88) || (latlngs[0][0] > 19.17);
+                const seg1 = latlngs.slice(0, dadarIdx + 1);
+                const seg2 = latlngs.slice(dadarIdx);
+
+                const color1 = isOrigCentral ? '#dc2626' : '#1d4ed8';
+                const color2 = isOrigCentral ? '#1d4ed8' : '#dc2626';
+
+                layers.push(L.polyline(seg1, {
+                    color: color1,
+                    weight: highlightedSegmentIndex === 1 ? 4 : (highlightedSegmentIndex === 0 ? 8 : 6),
+                    opacity: highlightedSegmentIndex === 1 ? 0.35 : 1.0,
+                    lineCap: 'round', lineJoin: 'round'
+                }));
+
+                layers.push(createTransferMarker(latlngs[dadarIdx], '🔄 Dadar Interchange', isOrigCentral ? 'Walk ~4 min across FOB from Central Line to Western Line Platform' : 'Walk ~4 min across FOB from Western Line to Central Line Platform'));
+
+                layers.push(L.polyline(seg2, {
+                    color: color2,
+                    weight: highlightedSegmentIndex === 0 ? 4 : (highlightedSegmentIndex === 1 ? 8 : 6),
+                    opacity: highlightedSegmentIndex === 0 ? 0.35 : 1.0,
+                    lineCap: 'round', lineJoin: 'round'
+                }));
+
+                if (highlightedSegmentIndex === 0) boundsToFit = seg1;
+                if (highlightedSegmentIndex === 1) boundsToFit = seg2;
+
+            // CASE 2: Central Line + Metro Line 1 interchange via Ghatkopar
+            } else if (hasCentral && hasMetro && ghatIdx > 0 && ghatIdx < latlngs.length - 1) {
+                const seg1 = latlngs.slice(0, ghatIdx + 1);
+                const seg2 = latlngs.slice(ghatIdx);
+
+                layers.push(L.polyline(seg1, {
+                    color: '#dc2626',
+                    weight: highlightedSegmentIndex === 1 ? 4 : (highlightedSegmentIndex === 0 ? 8 : 6),
+                    opacity: highlightedSegmentIndex === 1 ? 0.35 : 1.0,
+                    lineCap: 'round', lineJoin: 'round'
+                }));
+
+                layers.push(createTransferMarker(latlngs[ghatIdx], '🔄 Ghatkopar Interchange', 'Walk ~2 min across FOB directly into Metro Line 1 Concourse'));
+
+                layers.push(L.polyline(seg2, {
+                    color: '#06b6d4',
+                    weight: highlightedSegmentIndex === 0 ? 4 : (highlightedSegmentIndex === 1 ? 8 : 6),
+                    opacity: highlightedSegmentIndex === 0 ? 0.35 : 1.0,
+                    lineCap: 'round', lineJoin: 'round'
+                }));
+
+                if (highlightedSegmentIndex === 0) boundsToFit = seg1;
+                if (highlightedSegmentIndex === 1) boundsToFit = seg2;
+
+            // CASE 3: Western Line + Metro Line 1 interchange via Andheri
+            } else if (hasWestern && hasMetro && andheriIdx > 0 && andheriIdx < latlngs.length - 1) {
+                const seg1 = latlngs.slice(0, andheriIdx + 1);
+                const seg2 = latlngs.slice(andheriIdx);
+
+                layers.push(L.polyline(seg1, {
+                    color: '#1d4ed8',
+                    weight: highlightedSegmentIndex === 1 ? 4 : (highlightedSegmentIndex === 0 ? 8 : 6),
+                    opacity: highlightedSegmentIndex === 1 ? 0.35 : 1.0,
+                    lineCap: 'round', lineJoin: 'round'
+                }));
+
+                layers.push(createTransferMarker(latlngs[andheriIdx], '🔄 Andheri Interchange', 'Walk across skywalk connecting Western Railway and Metro 1'));
+
+                layers.push(L.polyline(seg2, {
+                    color: '#06b6d4',
+                    weight: highlightedSegmentIndex === 0 ? 4 : (highlightedSegmentIndex === 1 ? 8 : 6),
+                    opacity: highlightedSegmentIndex === 0 ? 0.35 : 1.0,
+                    lineCap: 'round', lineJoin: 'round'
+                }));
+
+                if (highlightedSegmentIndex === 0) boundsToFit = seg1;
+                if (highlightedSegmentIndex === 1) boundsToFit = seg2;
+
+            // CASE 4: Rail Corridor to Road Transit (Hub Connection / Last Mile Taxi)
+            } else if (hasRoad && (hasCentral || hasWestern || hasHarbour) && latlngs.length >= 3) {
+                const splitIdx = Math.max(1, latlngs.length - 2);
+                const seg1 = latlngs.slice(0, splitIdx + 1);
+                const seg2 = latlngs.slice(splitIdx);
+
+                const railColor = hasCentral ? '#dc2626' : (hasWestern ? '#1d4ed8' : '#ea580c');
+                const lastStationCoord = latlngs[splitIdx];
+
+                layers.push(L.polyline(seg1, {
+                    color: railColor,
+                    weight: highlightedSegmentIndex === 1 ? 4 : (highlightedSegmentIndex === 0 ? 8 : 6),
+                    opacity: highlightedSegmentIndex === 1 ? 0.35 : 1.0,
+                    lineCap: 'round', lineJoin: 'round'
+                }));
+
+                layers.push(createTransferMarker(lastStationCoord, '🚖 Transit Interchange', 'Exit station to Last-Mile Taxi / Auto Stand'));
+
+                layers.push(L.polyline(seg2, {
+                    color: '#eab308',
+                    weight: highlightedSegmentIndex === 0 ? 4 : (highlightedSegmentIndex === 1 ? 8 : 6),
+                    opacity: highlightedSegmentIndex === 0 ? 0.35 : 1.0,
+                    lineCap: 'round', lineJoin: 'round'
+                }));
+
+                if (highlightedSegmentIndex === 0) boundsToFit = seg1;
+                if (highlightedSegmentIndex === 1) boundsToFit = seg2;
+
+            // CASE 5: Direct Single Corridor (No Interchange needed)
+            } else {
+                let lineColor = '#2563eb';
+                if (hasCentral) lineColor = '#dc2626';
+                else if (hasWestern) lineColor = '#1d4ed8';
+                else if (hasHarbour) lineColor = '#ea580c';
+                else if (hasMetro) lineColor = '#06b6d4';
+                else if (hasRoad) lineColor = '#eab308';
+
+                layers.push(L.polyline(latlngs, {
+                    color: lineColor,
+                    weight: 6,
+                    opacity: 1.0,
+                    lineCap: 'round', lineJoin: 'round'
+                }));
+            }
+
+            // Floating Google Maps Route Time Badge at midpoint
+            const midIdx = Math.floor(latlngs.length / 2);
+            const midCoord = latlngs[midIdx];
+            const durStr = routeInfo ? `${Math.floor(routeInfo.time / 60) > 0 ? Math.floor(routeInfo.time / 60) + ' hr ' : ''}${routeInfo.time % 60} min` : '';
+            const freqStr = routeInfo?.frequency || 'every 6–8 min';
+
+            const gmapsBubble = L.divIcon({
+                className: 'google-maps-bubble-container',
+                html: `
+                    <div class="bg-white text-slate-900 border border-slate-300 rounded-lg shadow-2xl px-2.5 py-1 text-center font-sans pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 hover:scale-105 transition-all">
+                        <div class="flex items-center justify-center gap-1.5 text-xs font-black text-slate-950 whitespace-nowrap">
+                            <span>🚆</span>
+                            <span>${durStr || 'Transit'}</span>
+                        </div>
+                        <div class="text-[10px] text-slate-500 font-semibold leading-tight whitespace-nowrap">
+                            ${freqStr}
+                        </div>
+                    </div>
+                `,
+                iconSize: [100, 36],
+                iconAnchor: [50, 18]
+            });
+            const bubbleMarker = L.marker(midCoord, { icon: gmapsBubble, zIndexOffset: 1000 });
+            layers.push(bubbleMarker);
+
+            currentRouteLayer = L.layerGroup(layers).addTo(map);
+            if(boundsToFit.length > 2) map.fitBounds(L.polyline(boundsToFit).getBounds(), {padding: [50, 50]});
+        }
+
+        function getColorMapping(mode) {
+            if (mode.includes('Local') || mode.includes('Train')) return 'color-Local';
+            if (mode.includes('Metro')) return 'color-Metro';
+            if (mode.includes('Auto') || mode.includes('Taxi') || mode.includes('Uber')) return 'color-Auto';
+            if (mode.includes('Bus')) return 'color-Bus';
+            return 'color-Walking'; 
+        }
+
+        document.getElementById('calculateBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('calculateBtn');
+            const originalText = btn.innerText;
+            btn.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processing...`;
+            btn.disabled = true;
+
+            const origin = document.getElementById('origin').value.trim();
+            const destination = document.getElementById('destination').value.trim();
+            const container = document.getElementById('resultsContainer');
+
+            if (!origin || !destination) {
+                container.innerHTML = `
+                    <div class="p-5 bg-amber-900/20 border border-amber-500/40 text-amber-300 rounded-xl flex items-center gap-3">
+                        <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        <div>
+                            <p class="font-bold">Missing Input</p>
+                            <p class="text-sm opacity-90">Please enter both a Source and Destination location before calculating.</p>
+                        </div>
+                    </div>`;
+                btn.innerText = originalText;
+                btn.disabled = false;
+                return;
+            }
+
+            const preferences = {
+                fastest: document.getElementById('fastest').checked,
+                cheapest: document.getElementById('cheapest').checked,
+                reliable: document.getElementById('reliable').checked
+            };
+            
+            try {
+                let distanceRef = { val: null };
+                
+                // 1. Fetch map data and calculate true railway distance
+                const mapData = await fetchMapData(origin, destination, distanceRef);
+
+                // 2. Fetch data from Flask API (dynamic path for local, cloud, and mobile tunnel)
+                const apiUrl = window.location.protocol.startsWith('http') 
+                    ? '/api/route-optimize' 
+                    : 'http://127.0.0.1:5000/api/route-optimize';
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ origin, destination, preferences, distance_km: distanceRef.val })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Optimization failed');
+                }
+
+                let rawData = await response.json();
+                let routes = Array.isArray(rawData) ? rawData : (rawData.routes || []);
+                let insights = !Array.isArray(rawData) ? rawData.insights : null;
+                let roadComparisons = !Array.isArray(rawData) ? rawData.road_comparisons : null;
+                
+                container.innerHTML = ''; // Clear previous
+                
+                if (routes.length === 0) {
+                    container.innerHTML = `
+                        <div class="p-6 bg-red-900/20 border border-red-500/40 text-red-400 rounded-xl flex items-center gap-3">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                            <div>
+                                <p class="font-bold">No Routes Available</p>
+                                <p class="text-sm opacity-80">Currently no direct corridors exist between ${origin} and ${destination} in the database.</p>
+                            </div>
+                        </div>`;
+                    return;
+                }
+
+                // Render Live Insights (Google Maps style traffic/crowd reporting)
+                if (insights) {
+                    const insightHtml = `
+                        <div class="bg-slate-800/80 border border-slate-600 rounded-xl p-4 mb-4 shadow-lg flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center shadow-inner text-cyan-400">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </div>
+                                <div>
+                                    <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Live Corridor Intelligence</p>
+                                    <p class="text-sm font-semibold text-slate-200 mt-0.5">Origin Station: <span class="text-white">${insights.origin_station}</span></p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 border-t sm:border-t-0 sm:border-l border-slate-700 pt-3 sm:pt-0 sm:pl-4 w-full sm:w-auto">
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-200 mt-0.5">Dest Traffic: <span class="text-white">${insights.dest_area}</span></p>
+                                    <p class="text-xs text-slate-400 mt-0.5">Weather: ${insights.weather}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.insertAdjacentHTML('beforeend', insightHtml);
+                    
+                    mapData.originInsight = insights.origin_station;
+                    mapData.destInsight = insights.dest_area;
+                }
+
+                // Draw map with colored segments based on top recommended route
+                drawSegmentedMap(mapData, origin, destination, routes[0].mode_sequence, 0, null, routes[0]);
+
+                // Render Google Maps Style Transit Cards with Advanced Analytics
+                routes.forEach((route, index) => {
+                    const isTop = index === 0;
+                    const walkLabel = route.walking_distance.endsWith('km') ? route.walking_distance.replace('km', ' km') : route.walking_distance.replace('m', 'm walk');
+                    const badgeHtml = isTop ? `<span class="bg-cyan-500 text-slate-950 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-[0_0_10px_rgba(6,182,212,0.6)]">Recommended</span>` : '';
+                    
+                    // Google Maps style transit line pill sequence
+                    const googleBadges = renderGoogleBadges(route.mode_sequence);
+
+                    // Upcoming train departure countdown tags
+                    const nextTrainsHtml = (route.next_trains && route.next_trains.length > 0) ? `
+                        <div class="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center gap-2 overflow-x-auto text-[11px] custom-scrollbar pb-1">
+                            <span class="text-slate-400 font-bold whitespace-nowrap">⏱️ Next Departures:</span>
+                            ${route.next_trains.map((t, tIdx) => `
+                                <span class="px-2 py-0.5 rounded bg-slate-800/90 border border-slate-700 text-cyan-300 font-mono font-bold whitespace-nowrap ${tIdx === 0 ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-200' : ''}">
+                                    ${t} ${tIdx === 0 ? '(Boarding)' : ''}
+                                </span>
+                            `).join('')}
+                        </div>
+                    ` : '';
+
+                    // Authentic Google Maps Vertical Timeline Itinerary
+                    let stepsHtml = '';
+                    if (route.timeline && route.timeline.length > 0) {
+                        stepsHtml = `
+                            <div class="relative pl-6 space-y-4 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-700">
+                                ${route.timeline.map((item, itemIdx) => {
+                                    if (item.type === 'board') {
+                                        const stopBorder = item.color === 'red' ? 'border-red-500/50 bg-red-950/40' : (item.color === 'blue' ? 'border-blue-500/50 bg-blue-950/40' : 'border-amber-500/50 bg-amber-950/40');
+                                        const stopAccId = `stops-${index}-${itemIdx}`;
+                                        return `
+                                            <div class="relative">
+                                                <span class="absolute -left-6 top-1 w-4 h-4 rounded-full bg-slate-950 border-2 ${item.color === 'red' ? 'border-red-500' : (item.color === 'blue' ? 'border-blue-500' : 'border-amber-400')} shadow-sm"></span>
+                                                <div class="text-xs">
+                                                    <div class="flex items-center justify-between mb-1">
+                                                        <span class="font-mono text-cyan-300 font-bold">${item.time}</span>
+                                                        <span class="font-extrabold text-white text-sm">${item.station}</span>
+                                                    </div>
+                                                    <div class="p-3 rounded-xl border ${stopBorder} my-1 shadow-sm">
+                                                        <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                                            <span class="px-2 py-0.5 rounded font-black text-[10px] ${item.color === 'red' ? 'bg-red-600 text-white' : (item.color === 'blue' ? 'bg-blue-600 text-white' : 'bg-amber-500 text-slate-950')}">${item.badge || 'Transit'}</span>
+                                                            <span class="font-bold text-slate-200 text-xs">${item.train_info}</span>
+                                                        </div>
+                                                        <p class="text-[11px] text-slate-400 font-medium">${item.meta}</p>
+                                                        ${item.stops && item.stops.length > 0 ? `
+                                                            <div class="mt-2 pt-2 border-t border-slate-700/60">
+                                                                <button type="button" onclick="document.getElementById('${stopAccId}').classList.toggle('hidden'); event.stopPropagation();" class="text-[11px] text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 transition-colors">
+                                                                    <span>Stops (${item.stops.length}): ${item.stops[0]} ➔ ${item.stops[item.stops.length - 1]}</span>
+                                                                    <span class="text-xs">⌄</span>
+                                                                </button>
+                                                                <div id="${stopAccId}" class="hidden mt-2 pl-3 border-l-2 border-slate-700 space-y-1">
+                                                                    ${item.stops.map(st => `<p class="text-[11px] text-slate-400 font-medium">• ${st}</p>`).join('')}
+                                                                </div>
+                                                            </div>
+                                                        ` : ''}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        `;
+                                    } else if (item.type === 'transfer') {
+                                        return `
+                                            <div class="relative">
+                                                <span class="absolute -left-6 top-1 w-4 h-4 rounded-full bg-slate-900 border-2 border-dashed border-amber-400"></span>
+                                                <div class="text-xs pl-1">
+                                                    <div class="flex items-center justify-between mb-1">
+                                                        <span class="font-mono text-slate-400 font-semibold">${item.time}</span>
+                                                        <span class="font-bold text-slate-300">${item.station}</span>
+                                                    </div>
+                                                    <div class="py-1.5 px-3 rounded-lg bg-amber-950/30 border border-amber-500/40 flex items-center gap-2 text-amber-300 text-[11px] font-semibold">
+                                                        <span>🚶</span>
+                                                        <span>${item.transfer_text}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        `;
+                                    } else if (item.type === 'arrive') {
+                                        return `
+                                            <div class="relative">
+                                                <span class="absolute -left-6 top-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
+                                                <div class="text-xs">
+                                                    <div class="flex items-center justify-between">
+                                                        <span class="font-mono text-emerald-400 font-bold">${item.time}</span>
+                                                        <span class="font-extrabold text-white text-sm">${item.station}</span>
+                                                    </div>
+                                                    <p class="text-[11px] text-slate-400 mt-1 font-medium">📍 ${item.meta}</p>
+                                                </div>
+                                            </div>
+                                        `;
+                                    }
+                                }).join('')}
+                            </div>
+                        `;
+                    } else if (route.steps && route.steps.length > 0) {
+                        stepsHtml = route.steps.map((st, stIdx) => `
+                            <div class="flex items-start gap-3">
+                                <div class="w-6 h-6 rounded-full bg-slate-800 border ${st.mode.includes('Central') ? 'border-red-500 text-red-400' : st.mode.includes('Western') ? 'border-blue-500 text-blue-400' : 'border-amber-400 text-amber-300'} flex items-center justify-center text-xs font-black shrink-0 mt-0.5">
+                                    ${stIdx + 1}
+                                </div>
+                                <div class="text-xs flex-1">
+                                    <p class="font-bold text-slate-200 leading-tight">${st.action}</p>
+                                    <p class="text-[11px] text-slate-400 mt-0.5">${st.stop}</p>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+
+                    // M-Indicator segment blocks
+                    let timelineBlocks = route.mode_sequence.map((mode, blockIndex) => {
+                        const colorClass = getColorMapping(mode);
+                        return `<div class="mode-block mode-block-click ${colorClass} px-3 py-1.5 rounded-md text-xs font-bold text-white shadow-md flex-1 text-center whitespace-nowrap overflow-hidden text-ellipsis border border-white/10 tracking-wide cursor-pointer" data-block-index="${blockIndex}">${mode}</div>`;
+                    }).join('<div class="text-slate-500 flex items-center px-1 font-bold text-xs">➔</div>');
+
+                    const card = document.createElement('div');
+                    card.className = "transit-route-card group transition-all duration-200";
+                    card.innerHTML = `
+                        <div class="bg-slate-900/80 border ${isTop ? 'border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.25)]' : 'border-slate-700/80 hover:border-slate-500'} rounded-2xl p-5 transition-all relative cursor-pointer">
+                            <!-- Top Header: Departure Window & Duration (Google Maps Look) -->
+                            <div class="flex items-start justify-between gap-3 mb-2.5">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-9 h-9 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center shrink-0 border border-cyan-500/30 text-lg shadow-inner">
+                                        🚆
+                                    </div>
+                                    <div>
+                                        <div class="text-base font-extrabold text-white tracking-tight flex items-center gap-2">
+                                            <span>${route.departure_window || 'Next Train Soon'}</span>
+                                            ${badgeHtml}
+                                        </div>
+                                        <div class="text-xs text-slate-400 font-semibold mt-0.5">
+                                            ${route.strategy} Corridor • ${route.total_km} km
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-xl font-black text-cyan-300">
+                                        ${Math.floor(route.time / 60) > 0 ? `${Math.floor(route.time / 60)} hr ` : ''}${route.time % 60} min
+                                    </div>
+                                    <div class="text-xs font-bold text-emerald-400 mt-0.5">
+                                        ₹${route.cost}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Google Maps Transit Line Pills Strip -->
+                            <div class="flex items-center flex-wrap gap-2 py-2.5 px-3 bg-slate-950/70 rounded-xl border border-slate-800/80 my-3 shadow-inner">
+                                ${googleBadges}
+                            </div>
+
+                            <!-- Frequency, Walk and Details Button -->
+                            <div class="flex flex-wrap items-center justify-between text-xs text-slate-400 font-medium px-1 mb-3 gap-2">
+                                <div class="flex items-center gap-3">
+                                    <span class="flex items-center gap-1.5 text-slate-300">
+                                        <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        ${route.frequency || 'every 6–8 mins'}
+                                    </span>
+                                    <span class="flex items-center gap-1">
+                                        🚶 ${walkLabel}
+                                    </span>
+                                    <span class="flex items-center gap-1">
+                                        🔄 ${route.transfers} transfer${route.transfers === 1 ? '' : 's'}
+                                    </span>
+                                </div>
+                                <button type="button" class="toggle-steps-btn text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 transition-colors px-2 py-0.5 rounded bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30">
+                                    <span>Details</span>
+                                    <svg class="w-3.5 h-3.5 transform transition-transform duration-200 arrow-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </button>
+                            </div>
+
+                            <!-- Advanced Smart Mobility Analytics Grid -->
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-slate-800 text-xs">
+                                <div class="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 shadow-sm">
+                                    <p class="text-[10px] text-slate-500 uppercase font-black tracking-wider">Cab Savings</p>
+                                    <p class="font-bold text-emerald-400 mt-0.5">Save ₹${route.cost_saved_inr || 450}</p>
+                                </div>
+                                <div class="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 shadow-sm">
+                                    <p class="text-[10px] text-slate-500 uppercase font-black tracking-wider">Speed Advantage</p>
+                                    <p class="font-bold text-cyan-300 mt-0.5">Faster vs Hwy</p>
+                                </div>
+                                <div class="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 shadow-sm">
+                                    <p class="text-[10px] text-slate-500 uppercase font-black tracking-wider">CO₂ Saved</p>
+                                    <p class="font-bold text-emerald-400 mt-0.5">🌱 ${route.co2_saved_kg || 4.2} kg</p>
+                                </div>
+                                <div class="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 shadow-sm">
+                                    <p class="text-[10px] text-slate-500 uppercase font-black tracking-wider">Rush Factor</p>
+                                    <p class="font-bold ${route.crowd === 'High' ? 'text-amber-400' : 'text-emerald-400'} mt-0.5">${route.crowd} Crowd</p>
+                                </div>
+                            </div>
+
+                            <!-- Upcoming Trains Countdown Strip -->
+                            ${nextTrainsHtml}
+
+                            <!-- Expandable Turn-by-Turn Itinerary Details -->
+                            <div class="itinerary-steps hidden mt-4 pt-4 border-t border-slate-800 space-y-3">
+                                <p class="text-xs font-bold text-cyan-400 uppercase tracking-wider mb-2">Turn-by-Turn Directions</p>
+                                <div class="space-y-3 bg-slate-950/50 p-3.5 rounded-xl border border-slate-800">
+                                    ${stepsHtml}
+                                </div>
+                                
+                                <!-- M-Indicator Segment Progression Bar -->
+                                <div class="pt-2">
+                                    <p class="text-[10px] text-slate-500 uppercase font-bold mb-1.5">Segment Inspector (Click to isolate on map):</p>
+                                    <div class="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+                                        ${timelineBlocks}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    // Details expander toggle
+                    const detailsBtn = card.querySelector('.toggle-steps-btn');
+                    const stepsDiv = card.querySelector('.itinerary-steps');
+                    const arrowIcon = card.querySelector('.arrow-icon');
+                    if (detailsBtn && stepsDiv) {
+                        detailsBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            const isHidden = stepsDiv.classList.contains('hidden');
+                            if (isHidden) {
+                                stepsDiv.classList.remove('hidden');
+                                arrowIcon?.classList.add('rotate-180');
+                            } else {
+                                stepsDiv.classList.add('hidden');
+                                arrowIcon?.classList.remove('rotate-180');
+                            }
+                        });
+                    }
+
+                    // Card click handler for map route selection
+                    card.firstElementChild.addEventListener('click', (e) => {
+                        if (e.target.closest('.toggle-steps-btn') || e.target.closest('.mode-block-click')) return;
+                        
+                        document.querySelectorAll('.transit-route-card > div').forEach(el => {
+                            el.classList.remove('border-cyan-500', 'shadow-[0_0_20px_rgba(6,182,212,0.25)]');
+                            el.classList.add('border-slate-700/80');
+                        });
+                        card.firstElementChild.classList.remove('border-slate-700/80');
+                        card.firstElementChild.classList.add('border-cyan-500', 'shadow-[0_0_20px_rgba(6,182,212,0.25)]');
+                        
+                        drawSegmentedMap(mapData, origin, destination, route.mode_sequence, index, null, route);
+                    });
+
+                    // Mode segment click handler for individual leg isolation
+                    card.querySelectorAll('.mode-block-click').forEach(block => {
+                        block.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            
+                            document.querySelectorAll('.transit-route-card > div').forEach(el => {
+                                el.classList.remove('border-cyan-500', 'shadow-[0_0_20px_rgba(6,182,212,0.25)]');
+                                el.classList.add('border-slate-700/80');
+                            });
+                            card.firstElementChild.classList.remove('border-slate-700/80');
+                            card.firstElementChild.classList.add('border-cyan-500', 'shadow-[0_0_20px_rgba(6,182,212,0.25)]');
+                            
+                            const blockIndex = parseInt(block.getAttribute('data-block-index'));
+                            drawSegmentedMap(mapData, origin, destination, route.mode_sequence, index, blockIndex, route);
+                        });
+                    });
+
+                    container.appendChild(card);
+                });
+
+                // Render Google Maps Style Road Comparison Cards (matching uploaded screenshot)
+                if (roadComparisons) {
+                    const roadHtml = `
+                        <div id="roadComparisonsSection" class="mt-5 pt-4 border-t border-slate-800">
+                            <div class="flex items-center justify-between mb-3 px-1">
+                                <h4 class="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                    <span>🚗</span>
+                                    <span>Road & Highway Alternatives (Live Traffic)</span>
+                                </h4>
+                                <span class="text-[10px] text-red-400 bg-red-950/60 border border-red-800/80 px-2 py-0.5 rounded font-bold">Peak Rush Hour</span>
+                            </div>
+                            <div class="space-y-2.5">
+                                <!-- Bike Taxi Alternative -->
+                                <div class="p-3.5 bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-xl flex items-center justify-between transition-all">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center text-base border border-amber-500/20">
+                                            🏍️
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-bold text-slate-200">${roadComparisons.bike?.title || 'via Two-Wheeler / Bike Taxi'}</p>
+                                            <p class="text-[11px] text-slate-400 mt-0.5">${roadComparisons.bike?.traffic || '🟠 Slow Moving Traffic'}</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-black text-amber-400">${roadComparisons.bike?.duration || '1 hr 11 min'}</p>
+                                        <p class="text-[11px] text-slate-400 mt-0.5">${roadComparisons.bike?.distance || '56.7 km'} • ${roadComparisons.bike?.cost || '₹180'}</p>
+                                    </div>
+                                </div>
+
+                                <!-- Personal / Uber Cab Alternative -->
+                                <div class="p-3.5 bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-xl flex items-center justify-between transition-all">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-lg bg-red-500/10 text-red-400 flex items-center justify-center text-base border border-red-500/20">
+                                            🚗
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-bold text-slate-200">${roadComparisons.cab?.title || 'via Eastern Express Hwy / NH 48'}</p>
+                                            <p class="text-[11px] text-slate-400 mt-0.5">${roadComparisons.cab?.traffic || '🔴 Heavy Congestion (Peak Rush)'}</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-black text-red-400">${roadComparisons.cab?.duration || '1 hr 21 min'}</p>
+                                        <p class="text-[11px] text-slate-400 mt-0.5">${roadComparisons.cab?.distance || '62.1 km'} • ${roadComparisons.cab?.cost || '₹653'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.insertAdjacentHTML('beforeend', roadHtml);
+                }
+
+                // Respect whichever mode filter tab is active
+                applyModeFilter(activeModeFilter);
+
+            } catch (error) {
+                container.innerHTML = `
+                    <div class="p-5 bg-red-900/20 border border-red-500/40 text-red-400 rounded-xl">
+                        <p class="font-bold mb-1">Connection Error</p>
+                        <p class="text-sm">${error.message}</p>
+                        <p class="text-xs mt-3 opacity-70">Make sure the Flask server is running locally on 127.0.0.1:5000</p>
+                    </div>`;
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        });
+    </script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.5); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.3); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.5); }
+    </style>
+</body>
+</html>
