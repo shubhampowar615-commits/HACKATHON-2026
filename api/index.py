@@ -16,6 +16,15 @@ from logic import calculate_optimal_routes
 app = Flask(__name__)
 CORS(app)
 
+@app.route('/')
+def home():
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    index_path = os.path.join(root_dir, 'index.html')
+    if os.path.exists(index_path):
+        with open(index_path, 'r', encoding='utf-8') as f:
+            return f.read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
+    return "Mumbai Commute Optimizer API is running", 200
+
 @app.route('/api/route-optimize', methods=['POST', 'OPTIONS'])
 def optimize_route():
     if request.method == 'OPTIONS':
@@ -50,3 +59,4 @@ def optimize_route_sub():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
+
