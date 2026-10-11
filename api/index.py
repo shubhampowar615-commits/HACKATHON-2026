@@ -40,6 +40,17 @@ def optimize_route():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.errorhandler(404)
+def handle_404(e):
+    if request.method == 'POST':
+        return optimize_route()
+    return jsonify({
+        "status": "Flask Running",
+        "path": request.path,
+        "method": request.method,
+        "path_info": request.environ.get('PATH_INFO')
+    }), 200
+
 @app.route('/', defaults={'path': ''}, methods=['GET', 'POST', 'OPTIONS'])
 @app.route('/<path:path>', methods=['GET', 'POST', 'OPTIONS'])
 def catch_all(path):
